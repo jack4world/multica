@@ -141,6 +141,93 @@ func (q *Queries) ListAuditRolesForProject(ctx context.Context, projectID pgtype
 	return items, nil
 }
 
+const listAuditeeWorkspaceIDs = `-- name: ListAuditeeWorkspaceIDs :many
+SELECT id FROM workspace
+WHERE audit_mode_enabled_at IS NOT NULL
+ORDER BY id ASC
+`
+
+// Workspaces the daily trail export has anything to do. An ordinary deployment
+// has none, so the job costs one indexed scan and stops.
+func (q *Queries) ListAuditeeWorkspaceIDs(ctx context.Context) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listAuditeeWorkspaceIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceActivityForDay = `-- name: ListWorkspaceActivityForDay :many
+SELECT id, issue_id, actor_type, actor_id, action, details, created_at
+FROM activity_log
+WHERE workspace_id = $1
+  AND created_at >= $2::timestamptz
+  AND created_at < $3::timestamptz
+ORDER BY created_at ASC, id ASC
+`
+
+type ListWorkspaceActivityForDayParams struct {
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	DayStart    pgtype.Timestamptz `json:"day_start"`
+	DayEnd      pgtype.Timestamptz `json:"day_end"`
+}
+
+type ListWorkspaceActivityForDayRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	IssueID   pgtype.UUID        `json:"issue_id"`
+	ActorType pgtype.Text        `json:"actor_type"`
+	ActorID   pgtype.UUID        `json:"actor_id"`
+	Action    string             `json:"action"`
+	Details   []byte             `json:"details"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// One auditee's whole activity for one UTC day, oldest first.
+//
+// Deliberately NOT filtered to audit-domain actions. A workpaper's story is the
+// comments, assignments and edits around its review decisions as well as the
+// decisions themselves; an export holding only the approvals would be the wrong
+// artifact to hand an auditor.
+func (q *Queries) ListWorkspaceActivityForDay(ctx context.Context, arg ListWorkspaceActivityForDayParams) ([]ListWorkspaceActivityForDayRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceActivityForDay, arg.WorkspaceID, arg.DayStart, arg.DayEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceActivityForDayRow{}
+	for rows.Next() {
+		var i ListWorkspaceActivityForDayRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.IssueID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.Action,
+			&i.Details,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockIssueForReviewGate = `-- name: LockIssueForReviewGate :one
 SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at FROM issue
 WHERE id = $1 AND workspace_id = $2

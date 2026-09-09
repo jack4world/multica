@@ -43,6 +43,28 @@ func ValidLevel(v string) bool {
 	return false
 }
 
+// Event names what the trail records about one transition. It is defined here,
+// beside the rules, on purpose: the gate is already deciding what kind of
+// transition this is, and naming it is the same decision. Split across two
+// packages, the name and the rule drift.
+//
+// Refusals have no Event. The trail says what happened, not what was attempted:
+// a refused request changed nothing, and recording attempts would let anyone
+// fill an auditee's history with noise from an endpoint they hold no rank on.
+type Event string
+
+const (
+	EventSubmitted      Event = "workpaper_submitted"
+	EventHandedOver     Event = "workpaper_handed_over"
+	EventDraftAdopted   Event = "workpaper_draft_adopted"
+	EventReviewPassed   Event = "workpaper_review_passed"
+	EventReviewRejected Event = "workpaper_review_rejected"
+	// EventFiled is deliberately not "passed at level three". An auditor reads
+	// the trail looking for the moment the workpaper became immutable.
+	EventFiled     Event = "workpaper_filed"
+	EventCancelled Event = "workpaper_cancelled"
+)
+
 // DenyCode classifies a refusal so a transport can map it to a status and a UI
 // can branch on it without parsing prose.
 type DenyCode string
@@ -87,6 +109,9 @@ type Input struct {
 	// PreparerID is the member recorded as having submitted this workpaper for
 	// review, or empty if it has never been submitted.
 	PreparerID string
+	// Reason is the free text accompanying the write. Required on a rejection
+	// and ignored otherwise.
+	Reason string
 }
 
 // Decision is the answer. RecordPreparer asks the caller to snapshot the actor
@@ -96,9 +121,19 @@ type Decision struct {
 	Code           DenyCode
 	Reason         string
 	RecordPreparer bool
+	// Event is what the trail should record, or empty when this write is not a
+	// transition worth recording.
+	Event Event
+	// RecordLevel is the rank that acted, for events where one did.
+	RecordLevel Level
 }
 
 func allow() Decision { return Decision{Allowed: true} }
+
+// record allows the write and asks the caller to record it.
+func record(event Event, level Level) Decision {
+	return Decision{Allowed: true, Event: event, RecordLevel: level}
+}
 
 func deny(code DenyCode, format string, args ...any) Decision {
 	return Decision{Code: code, Reason: fmt.Sprintf(format, args...)}
@@ -213,7 +248,7 @@ func Decide(in Input) Decision {
 			return deny(DenyLevelRequired,
 				"cancelling a workpaper needs a reviewer role on this engagement, or workspace admin")
 		}
-		return allow()
+		return record(EventCancelled, in.ActorLevel)
 	}
 
 	// Leaving the chain for any other ordinary status. This is the escape hatch
@@ -235,6 +270,9 @@ func Decide(in Input) Decision {
 		if in.ActorIsAgent {
 			return deny(DenyAgent, "an agent cannot move a workpaper to %q", in.To)
 		}
+		if in.From == auditmode.StatusAgentDelivered {
+			return record(EventDraftAdopted, "")
+		}
 		return allow()
 
 	case auditmode.StatusAgentDelivered:
@@ -249,7 +287,7 @@ func Decide(in Input) Decision {
 			return deny(DenyIllegalTransition,
 				"an agent can only hand over a workpaper that is in %q", auditmode.StatusDrafting)
 		}
-		return allow()
+		return record(EventHandedOver, "")
 
 	case auditmode.StatusReviewL1:
 		if in.From != auditmode.StatusDrafting {
@@ -261,7 +299,7 @@ func Decide(in Input) Decision {
 		}
 		// The submitter becomes the preparer. Ownership moves during review, so
 		// this is the only moment the identity can be captured.
-		return Decision{Allowed: true, RecordPreparer: true}
+		return Decision{Allowed: true, RecordPreparer: true, Event: EventSubmitted}
 
 	case auditmode.StatusReviewL2, auditmode.StatusReviewL3, auditmode.StatusFiled:
 		level, isReview := levelFor(in.From)
@@ -296,5 +334,18 @@ func decideChainStep(in Input, required Level) Decision {
 		return deny(DenySelfReview,
 			"you prepared this workpaper and cannot review it; hand it to another %s", required)
 	}
-	return allow()
+	if in.To == auditmode.StatusDrafting {
+		// A rejection SHOULD carry a reason — telling a preparer their work does
+		// not stand without saying why leaves them exactly where this control
+		// exists to stop them being. It is not enforced here yet, and that is
+		// deliberate: no client can send one today, and a server-side rule that
+		// no client can satisfy would not make rejections better, it would make
+		// them impossible, stranding every workpaper that fails review. The
+		// requirement lands with the input that lets a reviewer type one.
+		return record(EventReviewRejected, required)
+	}
+	if in.To == auditmode.StatusFiled {
+		return record(EventFiled, required)
+	}
+	return record(EventReviewPassed, required)
 }

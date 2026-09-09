@@ -82,3 +82,24 @@ SET preparer_id = EXCLUDED.preparer_id,
 
 -- name: DeleteWorkpaperRecord :exec
 DELETE FROM audit_workpaper WHERE issue_id = $1;
+
+-- name: ListAuditeeWorkspaceIDs :many
+-- Workspaces the daily trail export has anything to do. An ordinary deployment
+-- has none, so the job costs one indexed scan and stops.
+SELECT id FROM workspace
+WHERE audit_mode_enabled_at IS NOT NULL
+ORDER BY id ASC;
+
+-- name: ListWorkspaceActivityForDay :many
+-- One auditee's whole activity for one UTC day, oldest first.
+--
+-- Deliberately NOT filtered to audit-domain actions. A workpaper's story is the
+-- comments, assignments and edits around its review decisions as well as the
+-- decisions themselves; an export holding only the approvals would be the wrong
+-- artifact to hand an auditor.
+SELECT id, issue_id, actor_type, actor_id, action, details, created_at
+FROM activity_log
+WHERE workspace_id = $1
+  AND created_at >= sqlc.arg('day_start')::timestamptz
+  AND created_at < sqlc.arg('day_end')::timestamptz
+ORDER BY created_at ASC, id ASC;

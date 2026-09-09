@@ -28,6 +28,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/realtime"
 	"github.com/multica-ai/multica/server/internal/scheduler"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/storage"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/llm"
@@ -769,6 +770,15 @@ func main() {
 	// machinery. The job is inert while plugins_v1 is disabled.
 	if err := schedulerMgr.Register(scheduler.PluginHookScheduleDispatchJob(queries, h.PluginService)); err != nil {
 		slog.Warn("scheduler: failed to register plugin_hook_schedule_dispatch job", "error", err)
+	}
+	// The audit trail lives in activity_log, which workspace teardown deletes.
+	// This job is what makes the record outlive the workspace that produced it.
+	// It is inert on a deployment with no auditee workspaces.
+	// NOT h.Storage: the attachment store is served publicly on local
+	// deployments and sits behind the CDN on S3. The export gets its own
+	// opt-in destination, and stays off when none is configured.
+	if err := schedulerMgr.Register(scheduler.AuditTrailExportJob(queries, storage.NewAuditExportStorageFromEnv())); err != nil {
+		slog.Warn("scheduler: failed to register audit_trail_export job", "error", err)
 	}
 	go func() {
 		_ = schedulerMgr.Run(sweepCtx)

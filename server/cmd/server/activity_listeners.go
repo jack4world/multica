@@ -65,7 +65,12 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 		assigneeChanged, _ := payload["assignee_changed"].(bool)
 		descriptionChanged, _ := payload["description_changed"].(bool)
 
-		if statusChanged {
+		// A governed audit transition already wrote its own entry, inside the
+		// transaction that made the change. Adding this one too would show the
+		// same review step twice on the timeline, and the second copy would be
+		// the weaker of the two — no level, no preparer, no reason.
+		auditTrailRecorded, _ := payload["audit_trail_recorded"].(bool)
+		if statusChanged && !auditTrailRecorded {
 			prevStatus, _ := payload["prev_status"].(string)
 			details, _ := json.Marshal(map[string]string{
 				"from": prevStatus,

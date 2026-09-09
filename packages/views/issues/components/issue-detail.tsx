@@ -302,6 +302,30 @@ function formatActivity(
         from: statusLabel(details.from ?? "?", t, resolveStatusLabel),
         to: statusLabel(details.to ?? "?", t, resolveStatusLabel),
       });
+    // Audit review chain. Without these the timeline falls through to the
+    // default branch and renders the raw action key, so a Chinese-locale
+    // auditor would read "workpaper_review_passed" where every other entry is
+    // a sentence.
+    case "workpaper_submitted":
+      return t(($) => $.activity.workpaper_submitted);
+    case "workpaper_handed_over":
+      return t(($) => $.activity.workpaper_handed_over);
+    case "workpaper_draft_adopted":
+      return t(($) => $.activity.workpaper_draft_adopted);
+    case "workpaper_review_passed":
+      return t(($) => $.activity.workpaper_review_passed, {
+        level: details.level ?? "?",
+      });
+    case "workpaper_review_rejected": {
+      const rejected = t(($) => $.activity.workpaper_review_rejected);
+      // The reason is the whole point of a rejection entry: it is what tells
+      // the preparer what to fix.
+      return details.reason ? `${rejected}: ${details.reason}` : rejected;
+    }
+    case "workpaper_filed":
+      return t(($) => $.activity.workpaper_filed);
+    case "workpaper_cancelled":
+      return t(($) => $.activity.workpaper_cancelled);
     case "priority_changed":
       return t(($) => $.activity.priority_changed, {
         from: priorityLabel(details.from ?? "?", t),

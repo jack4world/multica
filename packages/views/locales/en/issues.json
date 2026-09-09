@@ -478,7 +478,14 @@
     "activity_count_one": "{{count}} activity",
     "activity_count_other": "{{count}} activities",
     "show_more_activities_one": "Show {{count}} more activity",
-    "show_more_activities_other": "Show {{count}} more activities"
+    "show_more_activities_other": "Show {{count}} more activities",
+    "workpaper_submitted": "submitted the workpaper for review",
+    "workpaper_handed_over": "handed over a draft for adoption",
+    "workpaper_draft_adopted": "adopted the draft",
+    "workpaper_review_passed": "passed review at {{level}}",
+    "workpaper_review_rejected": "returned the workpaper to its preparer",
+    "workpaper_filed": "filed the workpaper",
+    "workpaper_cancelled": "cancelled the workpaper"
   },
   "comment": {
     "add_reaction": "Add reaction",
