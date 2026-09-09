@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/auditmeta"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/util"
@@ -33,12 +34,18 @@ type ProjectResponse struct {
 	LeadID      *string `json:"lead_id"`
 	// StartDate / DueDate are calendar days ("YYYY-MM-DD"), no time-of-day or
 	// timezone — same contract as issue.start_date / issue.due_date.
-	StartDate  *string `json:"start_date"`
-	DueDate    *string `json:"due_date"`
-	CreatedAt  string  `json:"created_at"`
-	UpdatedAt  string  `json:"updated_at"`
-	IssueCount int64   `json:"issue_count"`
-	DoneCount  int64   `json:"done_count"`
+	StartDate *string `json:"start_date"`
+	DueDate   *string `json:"due_date"`
+	// The engagement's own facts: what period this audit covers and what kind
+	// of audit it is. Absent, not blank, on an ordinary project, so a client
+	// can tell a project from an engagement with an unfilled period.
+	AuditPeriodStart *string `json:"audit_period_start,omitempty"`
+	AuditPeriodEnd   *string `json:"audit_period_end,omitempty"`
+	AuditType        *string `json:"audit_type,omitempty"`
+	CreatedAt        string  `json:"created_at"`
+	UpdatedAt        string  `json:"updated_at"`
+	IssueCount       int64   `json:"issue_count"`
+	DoneCount        int64   `json:"done_count"`
 	// ResourceCount is a breadcrumb pointing at the sub-collection at
 	// /api/projects/{id}/resources. Resources themselves stay out of this
 	// payload to keep parent metadata and child collections separate; clients
@@ -61,6 +68,10 @@ func projectToResponse(p db.Project) ProjectResponse {
 		DueDate:     dateToPtr(p.DueDate),
 		CreatedAt:   timestampToString(p.CreatedAt),
 		UpdatedAt:   timestampToString(p.UpdatedAt),
+
+		AuditPeriodStart: dateToPtr(p.AuditPeriodStart),
+		AuditPeriodEnd:   dateToPtr(p.AuditPeriodEnd),
+		AuditType:        textToPtr(p.AuditType),
 	}
 }
 
@@ -131,6 +142,12 @@ type UpdateProjectRequest struct {
 	LeadID      *string `json:"lead_id"`
 	StartDate   *string `json:"start_date"`
 	DueDate     *string `json:"due_date"`
+	// The engagement's own facts. Editable by anyone who can edit the project:
+	// a period and a kind are working facts a lead auditor legitimately
+	// corrects, unlike the auditee's identity.
+	AuditPeriodStart *string `json:"audit_period_start"`
+	AuditPeriodEnd   *string `json:"audit_period_end"`
+	AuditType        *string `json:"audit_type"`
 }
 
 func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
@@ -585,6 +602,32 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 			params.DueDate = pgtype.Date{Valid: false} // explicit null = clear date
 		}
 	}
+	// The audit period is validated as a PAIR: an end before a start is a
+	// period that cannot exist, and recording one would put every workpaper's
+	// evidence window in doubt. Checked against the values the write will
+	// actually land on, not only against what this request sent, so correcting
+	// one end cannot produce an impossible period with the other.
+	nextStart, nextEnd := auditPeriodAfterUpdate(prevProject, req, rawFields)
+	if err := auditmeta.ValidatePeriod(nextStart, nextEnd); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if _, ok := rawFields["audit_period_start"]; ok {
+		params.AuditPeriodStart = calendarDateOrNull(nextStart)
+	}
+	if _, ok := rawFields["audit_period_end"]; ok {
+		params.AuditPeriodEnd = calendarDateOrNull(nextEnd)
+	}
+	if req.AuditType != nil {
+		auditType := strings.TrimSpace(*req.AuditType)
+		if !auditmeta.ValidAuditTypeOrEmpty(auditType) {
+			writeError(w, http.StatusBadRequest,
+				"audit_type must be one of: "+strings.Join(auditmeta.AuditTypes(), ", "))
+			return
+		}
+		params.AuditType = pgtype.Text{String: auditType, Valid: auditType != ""}
+	}
+
 	project, err := h.Queries.UpdateProject(r.Context(), params)
 	if err != nil {
 		h.writeProjectWriteError(w, r, err, "update")
@@ -969,4 +1012,48 @@ func (h *Handler) SearchProjects(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"projects": resp,
 	})
+}
+
+// auditPeriodAfterUpdate resolves what the period will BE once this request is
+// applied — the sent value where the key is present, the stored one otherwise.
+//
+// Validating only what was sent would let a request that corrects one end
+// produce an impossible period with the other, which the storage constraint
+// would then reject as a 500 rather than as the bad request it is.
+func auditPeriodAfterUpdate(prev db.Project, req UpdateProjectRequest, rawFields map[string]json.RawMessage) (string, string) {
+	start := dateOrEmpty(prev.AuditPeriodStart)
+	if _, ok := rawFields["audit_period_start"]; ok {
+		start = ""
+		if req.AuditPeriodStart != nil {
+			start = strings.TrimSpace(*req.AuditPeriodStart)
+		}
+	}
+	end := dateOrEmpty(prev.AuditPeriodEnd)
+	if _, ok := rawFields["audit_period_end"]; ok {
+		end = ""
+		if req.AuditPeriodEnd != nil {
+			end = strings.TrimSpace(*req.AuditPeriodEnd)
+		}
+	}
+	return start, end
+}
+
+func dateOrEmpty(d pgtype.Date) string {
+	if p := dateToPtr(d); p != nil {
+		return *p
+	}
+	return ""
+}
+
+// calendarDateOrNull turns an already-validated date string into storage form;
+// empty clears it.
+func calendarDateOrNull(v string) pgtype.Date {
+	if v == "" {
+		return pgtype.Date{Valid: false}
+	}
+	d, err := util.ParseCalendarDate(v)
+	if err != nil {
+		return pgtype.Date{Valid: false}
+	}
+	return d
 }

@@ -16,6 +16,11 @@ export interface Project {
   // issue.start_date / issue.due_date.
   start_date: string | null;
   due_date: string | null;
+  /** The period this audit covers. Absent on an ordinary project. */
+  audit_period_start?: string | null;
+  audit_period_end?: string | null;
+  /** What kind of audit this engagement is. */
+  audit_type?: string | null;
   created_at: string;
   updated_at: string;
   issue_count: number;

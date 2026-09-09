@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/analytics"
+	"github.com/multica-ai/multica/server/internal/auditmeta"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/logger"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
@@ -110,6 +111,13 @@ type WorkspaceResponse struct {
 	// vocabulary and boards from the workspace it already fetched, without a
 	// second round trip on every navigation.
 	AuditMode AuditModeResponse `json:"audit_mode"`
+	// ClientName is the legal entity under audit. Absent, not blank, on a
+	// workspace that is not an auditee, so a client can tell "not an audit"
+	// from "not filled in".
+	ClientName *string `json:"client_name,omitempty"`
+	// Confidentiality is a MARKING on the material, never a permission — access
+	// isolation is membership of this workspace and nothing else (ADR-0001).
+	Confidentiality *string `json:"confidentiality,omitempty"`
 }
 
 func (h *Handler) workspaceToResponse(w db.Workspace) WorkspaceResponse {
@@ -128,18 +136,20 @@ func (h *Handler) workspaceToResponse(w db.Workspace) WorkspaceResponse {
 		repos = []any{}
 	}
 	return WorkspaceResponse{
-		ID:          uuidToString(w.ID),
-		Name:        w.Name,
-		Slug:        w.Slug,
-		Description: textToPtr(w.Description),
-		Context:     textToPtr(w.Context),
-		Settings:    settings,
-		Repos:       repos,
-		IssuePrefix: w.IssuePrefix,
-		AvatarURL:   h.resolveAvatarURLPtr(textToPtr(w.AvatarUrl)),
-		CreatedAt:   timestampToString(w.CreatedAt),
-		UpdatedAt:   timestampToString(w.UpdatedAt),
-		AuditMode:   auditModeResponse(w.AuditModeEnabledAt),
+		ID:              uuidToString(w.ID),
+		Name:            w.Name,
+		Slug:            w.Slug,
+		Description:     textToPtr(w.Description),
+		Context:         textToPtr(w.Context),
+		Settings:        settings,
+		Repos:           repos,
+		IssuePrefix:     w.IssuePrefix,
+		AvatarURL:       h.resolveAvatarURLPtr(textToPtr(w.AvatarUrl)),
+		CreatedAt:       timestampToString(w.CreatedAt),
+		UpdatedAt:       timestampToString(w.UpdatedAt),
+		AuditMode:       auditModeResponse(w.AuditModeEnabledAt),
+		ClientName:      textToPtr(w.ClientName),
+		Confidentiality: textToPtr(w.Confidentiality),
 	}
 }
 
@@ -332,6 +342,11 @@ type UpdateWorkspaceRequest struct {
 	Repos       any     `json:"repos"`
 	IssuePrefix *string `json:"issue_prefix"`
 	AvatarURL   *string `json:"avatar_url"`
+	// The auditee's own facts. Owner/admin only, and human-only: the identity
+	// of an audit and how sensitive its material is should not shift under the
+	// people doing the audit.
+	ClientName      *string `json:"client_name"`
+	Confidentiality *string `json:"confidentiality"`
 }
 
 type workspaceRepoRef struct {
@@ -408,6 +423,30 @@ func (h *Handler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if req.Settings != nil {
 		s, _ := json.Marshal(req.Settings)
 		params.Settings = s
+	}
+	if req.ClientName != nil || req.Confidentiality != nil {
+		requester, ok := h.requireWorkspaceRole(w, r, id, "workspace not found", "owner", "admin")
+		if !ok {
+			return
+		}
+		// An agent inherits its runtime owner's credentials, so an owner's
+		// agent would otherwise be able to rename the entity under audit.
+		if actorType, _ := h.resolveActor(r, uuidToString(requester.UserID), id); actorType == "agent" {
+			writeError(w, http.StatusForbidden, "agents cannot change the auditee's identity")
+			return
+		}
+		if req.ClientName != nil {
+			params.ClientName = pgtype.Text{String: strings.TrimSpace(*req.ClientName), Valid: true}
+		}
+		if req.Confidentiality != nil {
+			label := strings.TrimSpace(*req.Confidentiality)
+			if !auditmeta.ValidConfidentialityOrEmpty(label) {
+				writeError(w, http.StatusBadRequest,
+					"confidentiality must be one of: "+strings.Join(auditmeta.ConfidentialityLabels(), ", "))
+				return
+			}
+			params.Confidentiality = pgtype.Text{String: label, Valid: label != ""}
+		}
 	}
 	if req.Repos != nil {
 		reposJSON, err := validateAndNormalizeWorkspaceRepos(req.Repos)
