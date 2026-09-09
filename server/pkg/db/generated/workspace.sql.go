@@ -14,7 +14,7 @@ import (
 const createWorkspace = `-- name: CreateWorkspace :one
 INSERT INTO workspace (name, slug, description, context, issue_prefix)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, audit_mode_enabled_at
+RETURNING id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, audit_mode_enabled_at, client_name, confidentiality
 `
 
 type CreateWorkspaceParams struct {
@@ -49,6 +49,8 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.AvatarUrl,
 		&i.AttributionFailClosed,
 		&i.AuditModeEnabledAt,
+		&i.ClientName,
+		&i.Confidentiality,
 	)
 	return i, err
 }
@@ -228,7 +230,7 @@ func (q *Queries) GetDaemonWorkspace(ctx context.Context, id pgtype.UUID) (GetDa
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, audit_mode_enabled_at FROM workspace
+SELECT id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, audit_mode_enabled_at, client_name, confidentiality FROM workspace
 WHERE id = $1
 `
 
@@ -250,6 +252,8 @@ func (q *Queries) GetWorkspace(ctx context.Context, id pgtype.UUID) (Workspace, 
 		&i.AvatarUrl,
 		&i.AttributionFailClosed,
 		&i.AuditModeEnabledAt,
+		&i.ClientName,
+		&i.Confidentiality,
 	)
 	return i, err
 }
@@ -269,7 +273,7 @@ func (q *Queries) GetWorkspaceAttributionFailClosed(ctx context.Context, id pgty
 }
 
 const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
-SELECT id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, audit_mode_enabled_at FROM workspace
+SELECT id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, audit_mode_enabled_at, client_name, confidentiality FROM workspace
 WHERE slug = $1
 `
 
@@ -291,6 +295,8 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (Workspac
 		&i.AvatarUrl,
 		&i.AttributionFailClosed,
 		&i.AuditModeEnabledAt,
+		&i.ClientName,
+		&i.Confidentiality,
 	)
 	return i, err
 }
@@ -349,7 +355,7 @@ const listWorkspaces = `-- name: ListWorkspaces :many
 SELECT w.id, w.name, w.slug, w.description, w.settings,
        w.created_at, w.updated_at, w.context, w.repos,
        w.issue_prefix, w.issue_counter, w.avatar_url, w.attribution_fail_closed,
-       w.audit_mode_enabled_at
+       w.audit_mode_enabled_at, w.client_name, w.confidentiality
 FROM member m
 JOIN workspace w ON w.id = m.workspace_id
 WHERE m.user_id = $1
@@ -380,6 +386,8 @@ func (q *Queries) ListWorkspaces(ctx context.Context, userID pgtype.UUID) ([]Wor
 			&i.AvatarUrl,
 			&i.AttributionFailClosed,
 			&i.AuditModeEnabledAt,
+			&i.ClientName,
+			&i.Confidentiality,
 		); err != nil {
 			return nil, err
 		}
@@ -444,20 +452,24 @@ UPDATE workspace SET
     repos = COALESCE($6, repos),
     issue_prefix = COALESCE($7, issue_prefix),
     avatar_url = COALESCE($8, avatar_url),
+    client_name = COALESCE($9, client_name),
+    confidentiality = COALESCE($10, confidentiality),
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, audit_mode_enabled_at
+RETURNING id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, audit_mode_enabled_at, client_name, confidentiality
 `
 
 type UpdateWorkspaceParams struct {
-	ID          pgtype.UUID `json:"id"`
-	Name        pgtype.Text `json:"name"`
-	Description pgtype.Text `json:"description"`
-	Context     pgtype.Text `json:"context"`
-	Settings    []byte      `json:"settings"`
-	Repos       []byte      `json:"repos"`
-	IssuePrefix pgtype.Text `json:"issue_prefix"`
-	AvatarUrl   pgtype.Text `json:"avatar_url"`
+	ID              pgtype.UUID `json:"id"`
+	Name            pgtype.Text `json:"name"`
+	Description     pgtype.Text `json:"description"`
+	Context         pgtype.Text `json:"context"`
+	Settings        []byte      `json:"settings"`
+	Repos           []byte      `json:"repos"`
+	IssuePrefix     pgtype.Text `json:"issue_prefix"`
+	AvatarUrl       pgtype.Text `json:"avatar_url"`
+	ClientName      pgtype.Text `json:"client_name"`
+	Confidentiality pgtype.Text `json:"confidentiality"`
 }
 
 func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error) {
@@ -470,6 +482,8 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		arg.Repos,
 		arg.IssuePrefix,
 		arg.AvatarUrl,
+		arg.ClientName,
+		arg.Confidentiality,
 	)
 	var i Workspace
 	err := row.Scan(
@@ -487,6 +501,8 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		&i.AvatarUrl,
 		&i.AttributionFailClosed,
 		&i.AuditModeEnabledAt,
+		&i.ClientName,
+		&i.Confidentiality,
 	)
 	return i, err
 }

@@ -42,6 +42,12 @@ UPDATE project SET
     lead_id = sqlc.narg('lead_id'),
     start_date = sqlc.narg('start_date'),
     due_date = sqlc.narg('due_date'),
+    -- COALESCE, not bare narg: these are set once and corrected rarely, and an
+    -- ordinary project edit that omits them must not silently clear the audit
+    -- period. Clearing is a deliberate act the handler expresses explicitly.
+    audit_period_start = COALESCE(sqlc.narg('audit_period_start'), audit_period_start),
+    audit_period_end = COALESCE(sqlc.narg('audit_period_end'), audit_period_end),
+    audit_type = COALESCE(sqlc.narg('audit_type'), audit_type),
     updated_at = now()
 WHERE id = $1
 RETURNING *;

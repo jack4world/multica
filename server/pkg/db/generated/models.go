@@ -1171,19 +1171,22 @@ type PluginStorage struct {
 }
 
 type Project struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	Title       string             `json:"title"`
-	Description pgtype.Text        `json:"description"`
-	Icon        pgtype.Text        `json:"icon"`
-	Status      string             `json:"status"`
-	LeadType    pgtype.Text        `json:"lead_type"`
-	LeadID      pgtype.UUID        `json:"lead_id"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	Priority    string             `json:"priority"`
-	StartDate   pgtype.Date        `json:"start_date"`
-	DueDate     pgtype.Date        `json:"due_date"`
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	Title            string             `json:"title"`
+	Description      pgtype.Text        `json:"description"`
+	Icon             pgtype.Text        `json:"icon"`
+	Status           string             `json:"status"`
+	LeadType         pgtype.Text        `json:"lead_type"`
+	LeadID           pgtype.UUID        `json:"lead_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	Priority         string             `json:"priority"`
+	StartDate        pgtype.Date        `json:"start_date"`
+	DueDate          pgtype.Date        `json:"due_date"`
+	AuditPeriodStart pgtype.Date        `json:"audit_period_start"`
+	AuditPeriodEnd   pgtype.Date        `json:"audit_period_end"`
+	AuditType        pgtype.Text        `json:"audit_type"`
 }
 
 type ProjectResource struct {
@@ -1548,6 +1551,8 @@ type Workspace struct {
 	// When TRUE, an agent run that resolves to no precise accountable human (would be owner_fallback) is refused at enqueue instead of degrading to the agent owner (MUL-4302 §3.5). Default FALSE = owner_fallback. Never affects authorization (originator_user_id).
 	AttributionFailClosed bool               `json:"attribution_fail_closed"`
 	AuditModeEnabledAt    pgtype.Timestamptz `json:"audit_mode_enabled_at"`
+	ClientName            pgtype.Text        `json:"client_name"`
+	Confidentiality       pgtype.Text        `json:"confidentiality"`
 }
 
 type WorkspaceInvitation struct {

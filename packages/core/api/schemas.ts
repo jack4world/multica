@@ -1308,6 +1308,12 @@ const ProjectSchema = z.object({
   // object — which would degrade a search/list batch to the empty fallback.
   start_date: z.string().nullable().default(null),
   due_date: z.string().nullable().default(null),
+  // Same reason as the dates above: an installed client meets servers that
+  // predate these fields, and dropping a whole project over a missing key
+  // would degrade a list to the empty fallback.
+  audit_period_start: z.string().nullable().default(null),
+  audit_period_end: z.string().nullable().default(null),
+  audit_type: z.string().nullable().default(null),
   created_at: z.string(),
   updated_at: z.string(),
   issue_count: z.number().default(0),

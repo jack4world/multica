@@ -29,7 +29,7 @@ INSERT INTO project (
     lead_type, lead_id, priority, start_date, due_date
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
-) RETURNING id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date
+) RETURNING id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type
 `
 
 type CreateProjectParams struct {
@@ -73,6 +73,9 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.Priority,
 		&i.StartDate,
 		&i.DueDate,
+		&i.AuditPeriodStart,
+		&i.AuditPeriodEnd,
+		&i.AuditType,
 	)
 	return i, err
 }
@@ -93,7 +96,7 @@ func (q *Queries) DeleteProject(ctx context.Context, arg DeleteProjectParams) er
 }
 
 const getProjectInWorkspace = `-- name: GetProjectInWorkspace :one
-SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date FROM project
+SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type FROM project
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -119,6 +122,9 @@ func (q *Queries) GetProjectInWorkspace(ctx context.Context, arg GetProjectInWor
 		&i.Priority,
 		&i.StartDate,
 		&i.DueDate,
+		&i.AuditPeriodStart,
+		&i.AuditPeriodEnd,
+		&i.AuditType,
 	)
 	return i, err
 }
@@ -166,7 +172,7 @@ func (q *Queries) GetProjectIssueStats(ctx context.Context, arg GetProjectIssueS
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date FROM project
+SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type FROM project
 WHERE workspace_id = $1
   AND ($2::text IS NULL OR status = $2)
   AND ($3::text IS NULL OR priority = $3)
@@ -202,6 +208,9 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 			&i.Priority,
 			&i.StartDate,
 			&i.DueDate,
+			&i.AuditPeriodStart,
+			&i.AuditPeriodEnd,
+			&i.AuditType,
 		); err != nil {
 			return nil, err
 		}
@@ -264,22 +273,31 @@ UPDATE project SET
     lead_id = $8,
     start_date = $9,
     due_date = $10,
+    -- COALESCE, not bare narg: these are set once and corrected rarely, and an
+    -- ordinary project edit that omits them must not silently clear the audit
+    -- period. Clearing is a deliberate act the handler expresses explicitly.
+    audit_period_start = COALESCE($11, audit_period_start),
+    audit_period_end = COALESCE($12, audit_period_end),
+    audit_type = COALESCE($13, audit_type),
     updated_at = now()
 WHERE id = $1
-RETURNING id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date
+RETURNING id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type
 `
 
 type UpdateProjectParams struct {
-	ID          pgtype.UUID `json:"id"`
-	Title       pgtype.Text `json:"title"`
-	Description pgtype.Text `json:"description"`
-	Icon        pgtype.Text `json:"icon"`
-	Status      pgtype.Text `json:"status"`
-	Priority    pgtype.Text `json:"priority"`
-	LeadType    pgtype.Text `json:"lead_type"`
-	LeadID      pgtype.UUID `json:"lead_id"`
-	StartDate   pgtype.Date `json:"start_date"`
-	DueDate     pgtype.Date `json:"due_date"`
+	ID               pgtype.UUID `json:"id"`
+	Title            pgtype.Text `json:"title"`
+	Description      pgtype.Text `json:"description"`
+	Icon             pgtype.Text `json:"icon"`
+	Status           pgtype.Text `json:"status"`
+	Priority         pgtype.Text `json:"priority"`
+	LeadType         pgtype.Text `json:"lead_type"`
+	LeadID           pgtype.UUID `json:"lead_id"`
+	StartDate        pgtype.Date `json:"start_date"`
+	DueDate          pgtype.Date `json:"due_date"`
+	AuditPeriodStart pgtype.Date `json:"audit_period_start"`
+	AuditPeriodEnd   pgtype.Date `json:"audit_period_end"`
+	AuditType        pgtype.Text `json:"audit_type"`
 }
 
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
@@ -294,6 +312,9 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		arg.LeadID,
 		arg.StartDate,
 		arg.DueDate,
+		arg.AuditPeriodStart,
+		arg.AuditPeriodEnd,
+		arg.AuditType,
 	)
 	var i Project
 	err := row.Scan(
@@ -310,6 +331,9 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.Priority,
 		&i.StartDate,
 		&i.DueDate,
+		&i.AuditPeriodStart,
+		&i.AuditPeriodEnd,
+		&i.AuditType,
 	)
 	return i, err
 }
