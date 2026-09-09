@@ -469,7 +469,14 @@
     "squad_leader_failed_reason": "평가 실패: {{reason}}",
     "coalesced_badge": "×{{count}}",
     "activity_count_other": "활동 {{count}}개",
-    "show_more_activities_other": "활동 {{count}}개 더 보기"
+    "show_more_activities_other": "활동 {{count}}개 더 보기",
+    "workpaper_submitted": "submitted the workpaper for review",
+    "workpaper_handed_over": "handed over a draft for adoption",
+    "workpaper_draft_adopted": "adopted the draft",
+    "workpaper_review_passed": "passed review at {{level}}",
+    "workpaper_review_rejected": "returned the workpaper to its preparer",
+    "workpaper_filed": "filed the workpaper",
+    "workpaper_cancelled": "cancelled the workpaper"
   },
   "comment": {
     "add_reaction": "반응 추가",

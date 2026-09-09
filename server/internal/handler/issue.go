@@ -2934,7 +2934,7 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 			actorType:     creatorType,
 			actorID:       actualCreatorID,
 		}
-		decision, _, applies, err := h.decideReviewGate(r.Context(), h.Queries, createGate, false)
+		decision, _, _, applies, err := h.decideReviewGate(r.Context(), h.Queries, createGate, false)
 		if err != nil {
 			slog.Warn("create issue review gate failed", append(logger.RequestAttrs(r), "error", err)...)
 			writeError(w, http.StatusInternalServerError, "failed to validate the issue status")
@@ -3167,17 +3167,21 @@ type UpdateIssueRequest struct {
 	// that landed asynchronously after that base without making media already
 	// present in the base impossible for the user to delete. Older clients omit
 	// it and receive conservative channel-media preservation.
-	DescriptionBase *string  `json:"description_base,omitempty"`
-	Status          *string  `json:"status"`
-	Priority        *string  `json:"priority"`
-	AssigneeType    *string  `json:"assignee_type"`
-	AssigneeID      *string  `json:"assignee_id"`
-	Position        *float64 `json:"position"`
-	StartDate       *string  `json:"start_date"`
-	DueDate         *string  `json:"due_date"`
-	ParentIssueID   *string  `json:"parent_issue_id"`
-	ProjectID       *string  `json:"project_id"`
-	Stage           *int32   `json:"stage"`
+	DescriptionBase *string `json:"description_base,omitempty"`
+	Status          *string `json:"status"`
+	// ReviewNote accompanies an audit review decision. Required when a reviewer
+	// returns a workpaper to its preparer: "rejected" with no reason leaves the
+	// preparer told their work does not stand without being told what to fix.
+	ReviewNote    *string  `json:"review_note"`
+	Priority      *string  `json:"priority"`
+	AssigneeType  *string  `json:"assignee_type"`
+	AssigneeID    *string  `json:"assignee_id"`
+	Position      *float64 `json:"position"`
+	StartDate     *string  `json:"start_date"`
+	DueDate       *string  `json:"due_date"`
+	ParentIssueID *string  `json:"parent_issue_id"`
+	ProjectID     *string  `json:"project_id"`
+	Stage         *int32   `json:"stage"`
 	// AttachmentIDs lets the description editor bind newly uploaded files to
 	// this issue so they surface in `GET /api/issues/:id/attachments` and the
 	// editor's preview Eye keeps working past a refresh. Existing bindings
@@ -3611,6 +3615,7 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		// the one write that can change whether an issue is a workpaper at all.
 		targetProject: params.ProjectID,
 		actorType:     actorType, actorID: actorID,
+		reason: strPtrValue(req.ReviewNote),
 	}
 
 	var issue db.Issue
@@ -3678,26 +3683,32 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	dueDateChanged := prevDueDate != resp.DueDate && (prevDueDate == nil) != (resp.DueDate == nil) ||
 		(prevDueDate != nil && resp.DueDate != nil && *prevDueDate != *resp.DueDate)
 
+	h.publishAuditTrailEntry(workspaceID, gate)
 	h.publish(protocol.EventIssueUpdated, workspaceID, actorType, actorID, map[string]any{
-		"issue":               resp,
-		"assignee_changed":    assigneeChanged,
-		"status_changed":      statusChanged,
-		"priority_changed":    priorityChanged,
-		"project_changed":     projectChanged,
-		"start_date_changed":  startDateChanged,
-		"due_date_changed":    dueDateChanged,
-		"description_changed": descriptionChanged,
-		"title_changed":       titleChanged,
-		"prev_title":          prevIssue.Title,
-		"prev_assignee_type":  textToPtr(prevIssue.AssigneeType),
-		"prev_assignee_id":    uuidToPtr(prevIssue.AssigneeID),
-		"prev_status":         prevIssue.Status,
-		"prev_priority":       prevIssue.Priority,
-		"prev_start_date":     prevStartDate,
-		"prev_due_date":       prevDueDate,
-		"prev_description":    textToPtr(prevIssue.Description),
-		"creator_type":        prevIssue.CreatorType,
-		"creator_id":          uuidToString(prevIssue.CreatorID),
+		"issue":            resp,
+		"assignee_changed": assigneeChanged,
+		"status_changed":   statusChanged,
+		// The audit review gate writes its own entry for a governed transition,
+		// inside the write transaction. Without this flag the listener would add
+		// a second, weaker entry for the same change and every review step would
+		// appear twice on the timeline.
+		"audit_trail_recorded": gate.recordedTrail,
+		"priority_changed":     priorityChanged,
+		"project_changed":      projectChanged,
+		"start_date_changed":   startDateChanged,
+		"due_date_changed":     dueDateChanged,
+		"description_changed":  descriptionChanged,
+		"title_changed":        titleChanged,
+		"prev_title":           prevIssue.Title,
+		"prev_assignee_type":   textToPtr(prevIssue.AssigneeType),
+		"prev_assignee_id":     uuidToPtr(prevIssue.AssigneeID),
+		"prev_status":          prevIssue.Status,
+		"prev_priority":        prevIssue.Priority,
+		"prev_start_date":      prevStartDate,
+		"prev_due_date":        prevDueDate,
+		"prev_description":     textToPtr(prevIssue.Description),
+		"creator_type":         prevIssue.CreatorType,
+		"creator_id":           uuidToString(prevIssue.CreatorID),
 	})
 	if attachmentsChanged {
 		// The full owner snapshot must be admitted before an auxiliary event at
@@ -4201,7 +4212,7 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 	// its refusals are per-issue and a mid-loop abort would leave earlier items
 	// written while still returning an error.
 	batchActorType, batchActorID := h.resolveActor(r, userID, workspaceID)
-	if err := h.preflightBatchReviewGate(r.Context(), req.IssueIDs, wsUUID, batchStatusKey, batchActorType, batchActorID); err != nil {
+	if err := h.preflightBatchReviewGate(r.Context(), req.IssueIDs, wsUUID, batchStatusKey, batchActorType, batchActorID, strPtrValue(req.Updates.ReviewNote)); err != nil {
 		if writeReviewGateError(w, err) {
 			return
 		}
@@ -4369,6 +4380,7 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		batchGate := &reviewGate{
 			prev: prevIssue, target: batchStatusKey, targetProject: params.ProjectID,
 			actorType: batchActorType, actorID: batchActorID,
+			reason: strPtrValue(req.Updates.ReviewNote),
 		}
 
 		var issue db.Issue
@@ -4419,12 +4431,16 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		priorityChanged := req.Updates.Priority != nil && prevIssue.Priority != issue.Priority
 		projectChanged := req.Updates.ProjectID != nil && uuidToString(prevIssue.ProjectID) != uuidToString(issue.ProjectID)
 
+		h.publishAuditTrailEntry(workspaceID, batchGate)
 		h.publish(protocol.EventIssueUpdated, workspaceID, actorType, actorID, map[string]any{
 			"issue":            resp,
 			"assignee_changed": assigneeChanged,
 			"status_changed":   statusChanged,
-			"priority_changed": priorityChanged,
-			"project_changed":  projectChanged,
+			// Per issue, not per batch: one request can move several workpapers
+			// and the gate records each one separately.
+			"audit_trail_recorded": batchGate.recordedTrail,
+			"priority_changed":     priorityChanged,
+			"project_changed":      projectChanged,
 		})
 
 		// Reassignment does not cancel existing tasks (#4963 / MUL-4113) —

@@ -469,7 +469,14 @@
     "squad_leader_failed_reason": "評価に失敗しました: {{reason}}",
     "coalesced_badge": "×{{count}}",
     "activity_count_other": "アクティビティ {{count}} 件",
-    "show_more_activities_other": "アクティビティをさらに {{count}} 件表示"
+    "show_more_activities_other": "アクティビティをさらに {{count}} 件表示",
+    "workpaper_submitted": "submitted the workpaper for review",
+    "workpaper_handed_over": "handed over a draft for adoption",
+    "workpaper_draft_adopted": "adopted the draft",
+    "workpaper_review_passed": "passed review at {{level}}",
+    "workpaper_review_rejected": "returned the workpaper to its preparer",
+    "workpaper_filed": "filed the workpaper",
+    "workpaper_cancelled": "cancelled the workpaper"
   },
   "comment": {
     "add_reaction": "リアクションを追加",

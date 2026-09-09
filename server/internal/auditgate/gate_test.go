@@ -27,6 +27,9 @@ func base() Input {
 		ActorMemberID: other,
 		ActorLevel:    LevelL1,
 		PreparerID:    preparer,
+		// Present by default so tests about anything else are unaffected by the
+		// rejection-needs-a-reason rule; the tests about that rule clear it.
+		Reason: "does not stand",
 	}
 }
 
