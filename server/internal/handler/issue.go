@@ -207,10 +207,18 @@ func assertIssueStatusStillActive(ctx context.Context, qtx *db.Queries, workspac
 
 // runWithIssueStatusGuard runs an issue write that lands on a custom status
 // inside a transaction that re-verifies the status under the shared catalog
-// lock (see assertIssueStatusStillActive). A built-in target skips the
-// transaction entirely.
-func (h *Handler) runWithIssueStatusGuard(ctx context.Context, workspaceID pgtype.UUID, statusKey string, fn func(q *db.Queries) error) error {
-	if statusKey == "" || issuestatus.IsBuiltIn(statusKey) {
+// lock (see assertIssueStatusStillActive), and that submits the write to the
+// audit review gate (see audit_review_gate.go).
+//
+// A write needing NEITHER skips the transaction entirely, exactly as before.
+// The archive-race guard alone is not the whole test any more: moving a
+// workpaper from 三级复核 to a BUILT-IN status is custom-to-built-in, so keying
+// the short circuit on the target alone would have let a workpaper walk out of
+// the review chain by being marked done. gate.mayApply answers from status keys
+// with no query, so a workspace that is not an auditee pays nothing.
+func (h *Handler) runWithIssueStatusGuard(ctx context.Context, workspaceID pgtype.UUID, statusKey string, gate *reviewGate, fn func(q *db.Queries) error) error {
+	needsCatalogLock := statusKey != "" && !issuestatus.IsBuiltIn(statusKey)
+	if !needsCatalogLock && !gate.mayApply() {
 		return fn(h.Queries)
 	}
 	tx, err := h.TxStarter.Begin(ctx)
@@ -220,7 +228,12 @@ func (h *Handler) runWithIssueStatusGuard(ctx context.Context, workspaceID pgtyp
 	defer tx.Rollback(ctx)
 
 	qtx := h.Queries.WithTx(tx)
-	if err := assertIssueStatusStillActive(ctx, qtx, workspaceID, statusKey); err != nil {
+	if needsCatalogLock {
+		if err := assertIssueStatusStillActive(ctx, qtx, workspaceID, statusKey); err != nil {
+			return err
+		}
+	}
+	if err := h.enforceReviewGate(ctx, qtx, gate); err != nil {
 		return err
 	}
 	if err := fn(qtx); err != nil {
@@ -2902,6 +2915,37 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 	// supplied parent only because the assignee gate must bind any autopilot
 	// authority fallback to that server-verified issue before admission.
 
+	// Determine creator identity: agent (via X-Agent-ID header) or member.
+	// Resolved here rather than just before the write, because the review gate
+	// below has to know whether an agent is asking.
+	creatorType, actualCreatorID := h.resolveActor(r, creatorID, workspaceID)
+
+	// A workpaper cannot be born inside the review chain. Every OTHER control
+	// here governs a transition, and without this one the whole chain is
+	// sidestepped by creating an issue that is already filed — a workpaper that
+	// no reviewer ever saw, presented as one three of them approved.
+	if projectID.Valid {
+		createGate := &reviewGate{
+			// No previous project: a create is the issue JOINING an engagement,
+			// decided by the same rule that governs moving one in.
+			prev:          db.Issue{WorkspaceID: wsUUID},
+			target:        status,
+			targetProject: projectID,
+			actorType:     creatorType,
+			actorID:       actualCreatorID,
+		}
+		decision, _, applies, err := h.decideReviewGate(r.Context(), h.Queries, createGate, false)
+		if err != nil {
+			slog.Warn("create issue review gate failed", append(logger.RequestAttrs(r), "error", err)...)
+			writeError(w, http.StatusInternalServerError, "failed to validate the issue status")
+			return
+		}
+		if applies && !decision.Allowed {
+			writeReviewGateError(w, &reviewGateDenial{decision: decision})
+			return
+		}
+	}
+
 	attachmentIDs, ok := parseUUIDSliceOrBadRequest(w, req.AttachmentIDs, "attachment_ids")
 	if !ok {
 		return
@@ -2932,8 +2976,7 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		dueDate = d
 	}
 
-	// Determine creator identity: agent (via X-Agent-ID header) or member.
-	creatorType, actualCreatorID := h.resolveActor(r, creatorID, workspaceID)
+	// Creator identity was resolved above, for the review gate.
 
 	// Optional origin stamping (quick-create / autopilot). Only the
 	// allowed origin types are accepted; anything else is rejected so a
@@ -3231,7 +3274,7 @@ func refreshUntouchedNullableIssueParams(params *db.UpdateIssueParams, current d
 
 var errIssueFieldConflict = errors.New("issue text field conflict")
 
-func (h *Handler) updateIssueAtomically(ctx context.Context, workspaceID pgtype.UUID, params db.UpdateIssueParams, rawFields map[string]json.RawMessage, titleBase, descriptionBase *string, attachmentIDs []pgtype.UUID, statusKey string) (db.Issue, db.Issue, bool, error) {
+func (h *Handler) updateIssueAtomically(ctx context.Context, workspaceID pgtype.UUID, params db.UpdateIssueParams, rawFields map[string]json.RawMessage, titleBase, descriptionBase *string, attachmentIDs []pgtype.UUID, statusKey string, gate *reviewGate) (db.Issue, db.Issue, bool, error) {
 	if h.TxStarter == nil {
 		return db.Issue{}, db.Issue{}, false, errors.New("atomic issue update requires transaction starter")
 	}
@@ -3246,6 +3289,11 @@ func (h *Handler) updateIssueAtomically(ctx context.Context, workspaceID pgtype.
 	// itself rather than going through runWithIssueStatusGuard. The catalog lock
 	// must precede both attachment and issue row locks everywhere. (MUL-6243)
 	if err := assertIssueStatusStillActive(ctx, qtx, workspaceID, statusKey); err != nil {
+		return db.Issue{}, db.Issue{}, false, err
+	}
+	// The gate runs in the SAME transaction as the write it authorizes, so the
+	// preparer it records and the status change it permits commit together.
+	if err := h.enforceReviewGate(ctx, qtx, gate); err != nil {
 		return db.Issue{}, db.Issue{}, false, err
 	}
 	if len(attachmentIDs) > 0 {
@@ -3554,18 +3602,29 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolved BEFORE the write, not after, because the audit review gate needs
+	// to know who is acting in order to decide whether the write may happen.
+	actorType, actorID := h.resolveActor(r, userID, workspaceID)
+	gate := &reviewGate{
+		prev: prevIssue, target: statusKeyForGuard,
+		// The project AFTER this write. A request that reassigns project_id is
+		// the one write that can change whether an issue is a workpaper at all.
+		targetProject: params.ProjectID,
+		actorType:     actorType, actorID: actorID,
+	}
+
 	var issue db.Issue
 	attachmentsChanged := false
 	if req.Description != nil || req.TitleBase != nil || req.DescriptionBase != nil || len(attachmentIDs) > 0 {
 		var lockedPrev db.Issue
 		issue, lockedPrev, attachmentsChanged, err = h.updateIssueAtomically(
-			r.Context(), prevIssue.WorkspaceID, params, rawFields, req.TitleBase, req.DescriptionBase, attachmentIDs, statusKeyForGuard,
+			r.Context(), prevIssue.WorkspaceID, params, rawFields, req.TitleBase, req.DescriptionBase, attachmentIDs, statusKeyForGuard, gate,
 		)
 		if lockedPrev.ID.Valid {
 			prevIssue = lockedPrev
 		}
 	} else {
-		err = h.runWithIssueStatusGuard(r.Context(), prevIssue.WorkspaceID, statusKeyForGuard, func(q *db.Queries) error {
+		err = h.runWithIssueStatusGuard(r.Context(), prevIssue.WorkspaceID, statusKeyForGuard, gate, func(q *db.Queries) error {
 			var innerErr error
 			issue, innerErr = q.UpdateIssue(r.Context(), params)
 			return innerErr
@@ -3586,13 +3645,15 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		if writeReviewGateError(w, err) {
+			return
+		}
 		slog.Warn("update issue failed", append(logger.RequestAttrs(r), "error", err, "issue_id", id, "workspace_id", workspaceID)...)
 		writeError(w, http.StatusInternalServerError, "failed to update issue: "+err.Error())
 		return
 	}
 
-	// Determine actor identity: agent (via X-Agent-ID header) or member.
-	actorType, actorID := h.resolveActor(r, userID, workspaceID)
+	// Actor identity was resolved above the write, for the review gate.
 
 	prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)
 	resp := issueToResponse(issue, prefix)
@@ -4136,6 +4197,19 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 	updated := 0
 	// One Resolver for the whole batch — a per-issue filler would query the
 	// catalog once per custom-status row. (MUL-6243)
+	// The review gate decides the WHOLE batch before the first write, because
+	// its refusals are per-issue and a mid-loop abort would leave earlier items
+	// written while still returning an error.
+	batchActorType, batchActorID := h.resolveActor(r, userID, workspaceID)
+	if err := h.preflightBatchReviewGate(r.Context(), req.IssueIDs, wsUUID, batchStatusKey, batchActorType, batchActorID); err != nil {
+		if writeReviewGateError(w, err) {
+			return
+		}
+		slog.Warn("batch review gate preflight failed", append(logger.RequestAttrs(r), "error", err)...)
+		writeError(w, http.StatusInternalServerError, "failed to validate the batch update")
+		return
+	}
+
 	fillBatch := h.newStatusCategoryFiller(r.Context(), wsUUID)
 	// Children that transitioned into a terminal status this batch, collected so
 	// the parent/stage notification is evaluated once against the final state
@@ -4292,6 +4366,11 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		batchGate := &reviewGate{
+			prev: prevIssue, target: batchStatusKey, targetProject: params.ProjectID,
+			actorType: batchActorType, actorID: batchActorID,
+		}
+
 		var issue db.Issue
 		if req.Updates.Description != nil {
 			// One batch-level base cannot describe multiple issue documents.
@@ -4299,13 +4378,13 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			// legacy single-update clients that omit description_base.
 			var lockedPrev db.Issue
 			issue, lockedPrev, _, err = h.updateIssueAtomically(
-				r.Context(), prevIssue.WorkspaceID, params, rawUpdates, nil, nil, nil, batchStatusKey,
+				r.Context(), prevIssue.WorkspaceID, params, rawUpdates, nil, nil, nil, batchStatusKey, batchGate,
 			)
 			if err == nil {
 				prevIssue = lockedPrev
 			}
 		} else {
-			err = h.runWithIssueStatusGuard(r.Context(), wsUUID, batchStatusKey, func(q *db.Queries) error {
+			err = h.runWithIssueStatusGuard(r.Context(), wsUUID, batchStatusKey, batchGate, func(q *db.Queries) error {
 				var innerErr error
 				issue, innerErr = q.UpdateIssue(r.Context(), params)
 				return innerErr
@@ -4318,13 +4397,20 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			if writeIssueStatusRaceError(w, err) {
 				return
 			}
+			// Preflight cleared every item, so a refusal here means the
+			// workpaper moved underneath this batch. Abort rather than skip:
+			// the caller asked for one transition across a set, and a silent
+			// omission would leave them believing it applied.
+			if writeReviewGateError(w, err) {
+				return
+			}
 			slog.Warn("batch update issue failed", "issue_id", issueID, "error", err)
 			continue
 		}
 
 		prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)
 		resp := issueToResponse(issue, prefix)
-		actorType, actorID := h.resolveActor(r, userID, workspaceID)
+		actorType, actorID := batchActorType, batchActorID
 
 		fillBatch(&resp)
 		assigneeChanged := (req.Updates.AssigneeType != nil || req.Updates.AssigneeID != nil) &&

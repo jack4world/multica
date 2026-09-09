@@ -199,6 +199,24 @@ type Attachment struct {
 	SourceContextID pgtype.UUID        `json:"source_context_id"`
 }
 
+type AuditRole struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	ProjectID   pgtype.UUID        `json:"project_id"`
+	MemberID    pgtype.UUID        `json:"member_id"`
+	Level       string             `json:"level"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+}
+
+type AuditWorkpaper struct {
+	IssueID     pgtype.UUID        `json:"issue_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	PreparerID  pgtype.UUID        `json:"preparer_id"`
+	SubmittedAt pgtype.Timestamptz `json:"submitted_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Autopilot struct {
 	ID                 pgtype.UUID        `json:"id"`
 	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
