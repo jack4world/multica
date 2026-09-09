@@ -103,3 +103,32 @@ WHERE workspace_id = $1
   AND created_at >= sqlc.arg('day_start')::timestamptz
   AND created_at < sqlc.arg('day_end')::timestamptz
 ORDER BY created_at ASC, id ASC;
+
+-- name: ListReviewQueueForMember :many
+-- Workpapers waiting on THIS member's rank, across every engagement they hold
+-- one on.
+--
+-- The join is the point. Filtering projects and statuses independently — which
+-- is all the ordinary issue list can do — returns the cross product: a viewer
+-- who is 主审 on one engagement and 项目经理 on another would be shown the
+-- other engagement's 一级复核 workpapers too, which are not theirs to review.
+-- Pairing each engagement with the rank held THERE is what makes the queue
+-- correct rather than merely filtered.
+--
+-- The preparer is excluded here as well as refused by the gate: a workpaper
+-- nobody may act on has no business sitting in their queue.
+SELECT i.*, r.level::text AS reviewer_level, w.preparer_id
+FROM audit_role r
+JOIN issue i
+  ON i.project_id = r.project_id
+ AND i.status = CASE r.level
+     WHEN 'reviewer_l1' THEN 'review_l1'
+     WHEN 'reviewer_l2' THEN 'review_l2'
+     WHEN 'reviewer_l3' THEN 'review_l3'
+ END
+LEFT JOIN audit_workpaper w ON w.issue_id = i.id
+WHERE r.workspace_id = $1
+  AND r.member_id = $2
+  AND (w.preparer_id IS NULL OR w.preparer_id <> $2)
+ORDER BY i.updated_at ASC, i.id ASC
+LIMIT $3;

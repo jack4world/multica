@@ -1969,6 +1969,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// open to any member — every client needs it to know whether this
 			// workspace is an auditee. Enabling is owner/admin, human-only,
 			// and one-way; see internal/handler/audit_mode.go.
+			// The review interface's two reads. Neither invents a rule: the
+			// actions come from the same matrix that enforces the chain, and
+			// the queue from the same reviewer-rank table the gate consults.
+			r.Get("/api/audit/review-queue", h.ListReviewQueue)
+			r.Get("/api/issues/{id}/audit-actions", h.ListAuditActions)
+
 			r.Route("/api/audit-mode", func(r chi.Router) {
 				r.Get("/", h.GetAuditMode)
 				r.Post("/", h.EnableAuditMode)

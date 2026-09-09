@@ -30,6 +30,7 @@
     "./workspace/workspace-url": "./workspace/workspace-url.ts",
     "./workspace/avatar-url": "./workspace/avatar-url.ts",
     "./issue-statuses": "./issue-statuses/index.ts",
+    "./audit": "./audit/index.ts",
     "./issue-statuses/queries": "./issue-statuses/queries.ts",
     "./issue-statuses/hooks": "./issue-statuses/hooks.ts",
     "./issue-statuses/mutations": "./issue-statuses/mutations.ts",

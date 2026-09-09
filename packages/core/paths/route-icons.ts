@@ -21,6 +21,7 @@
 /** Every icon name a nav page or a tab type-icon can resolve to. */
 export type RouteIconName =
   | "Inbox"
+  | "Stamp"
   | "MessageSquare"
   | "CircleUser"
   | "ListTodo"
@@ -45,6 +46,7 @@ export type RouteIconName =
 /** i18n label key (under the `layout.nav` namespace) for a page. */
 export type NavLabelKey =
   | "inbox"
+  | "review_queue"
   | "chat"
   | "my_issues"
   | "issues"
@@ -60,6 +62,7 @@ export type NavLabelKey =
 /** Stable identifier for each workspace navigation page. */
 export type WorkspacePageKey =
   | "inbox"
+  | "reviewQueue"
   | "chat"
   | "myIssues"
   | "issues"
@@ -89,6 +92,10 @@ export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
   inbox: { segment: "inbox", icon: "Inbox", navKey: "inbox" },
   chat: { segment: "chat", icon: "MessageSquare", navKey: "chat" },
   myIssues: { segment: "my-issues", icon: "CircleUser", navKey: "my_issues" },
+  // Shown only in an auditee workspace. "Waiting on me" is a different kind of
+  // thing from a filter over all issues, and burying it in the issue list is
+  // how a reviewer never finds it — which is the failure this page exists for.
+  reviewQueue: { segment: "review-queue", icon: "Stamp", navKey: "review_queue" },
   issues: { segment: "issues", icon: "ListTodo", navKey: "issues" },
   projects: { segment: "projects", icon: "FolderKanban", navKey: "projects" },
   autopilots: { segment: "autopilots", icon: "Zap", navKey: "autopilots" },

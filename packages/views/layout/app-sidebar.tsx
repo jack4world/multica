@@ -68,6 +68,7 @@ import { workspaceListOptions, myInvitationListOptions, workspaceKeys } from "@m
 import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { inboxKeys, deduplicateInboxItems, inboxUnreadSummaryOptions, hasOtherWorkspaceUnread, unreadWorkspaceIds } from "@multica/core/inbox/queries";
+import { useAuditMode } from "@multica/core/audit";
 import { chatSessionsOptions } from "@multica/core/chat/queries";
 import { countUnreadChatMessages } from "@multica/core/chat/unread";
 import { useChatStore } from "@multica/core/chat";
@@ -113,6 +114,7 @@ const PINNED_PREVIEW_LIMIT = 5;
 // Only parameterless paths are valid nav destinations.
 type NavKey =
   | "inbox"
+  | "reviewQueue"
   | "chat"
   | "myIssues"
   | "issues"
@@ -129,6 +131,7 @@ type NavKey =
 // icons derived from the destination path via routeIconForPath.
 type NavLabelKey =
   | "inbox"
+  | "review_queue"
   | "chat"
   | "my_issues"
   | "issues"
@@ -148,6 +151,14 @@ const personalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "inbox", labelKey: "inbox" },
   { key: "myIssues", labelKey: "my_issues" },
   { key: "chat", labelKey: "chat" },
+];
+
+// Shown only in an auditee workspace. It sits with the personal items because
+// it answers "what is waiting on ME" — the same question the inbox answers —
+// and because a reviewer has no other way to learn a workpaper is waiting: it
+// stays owned by its preparer while it is being reviewed.
+const auditNav: { key: NavKey; labelKey: NavLabelKey }[] = [
+  { key: "reviewQueue", labelKey: "review_queue" },
 ];
 
 const workNav: { key: NavKey; labelKey: NavLabelKey }[] = [
@@ -459,6 +470,11 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
     queryFn: () => api.listInbox(),
     enabled: !!wsId,
   });
+  // Audit mode is turned on once and never off, so this is as static as
+  // workspace state gets; the query caches it rather than asking per render.
+  const { data: auditMode } = useAuditMode(wsId ?? "");
+  const auditModeEnabled = auditMode?.enabled === true;
+
   const unreadCount = React.useMemo(
     () => deduplicateInboxItems(inboxItems).filter((i) => !i.read).length,
     [inboxItems],
@@ -765,7 +781,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {personalNav.map((item) => {
+                {[...personalNav, ...(auditModeEnabled ? auditNav : [])].map((item) => {
                   const href = p[item.key]();
                   const Icon = routeIconForPath(href);
                   const isActive = isNavActive(pathname, href);

@@ -137,6 +137,7 @@ import { PAGE_GUTTER } from "../../layout/page-header";
 import { ProgressRing } from "./progress-ring";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 import { useT } from "../../i18n";
+import { ReviewActions } from "../../audit";
 import { useIssueDetailScrollRestore } from "../hooks/use-issue-detail-scroll-restore";
 import { useInPageFind } from "../hooks/use-in-page-find";
 import { useStickyComposer } from "../hooks/use-sticky-composer";
@@ -2318,6 +2319,12 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           <PropRow label={t(($) => $.detail.prop_status)}>
             <StatusPicker status={issue.status} onUpdate={handleUpdateField} align="start" />
           </PropRow>
+          {/* Review actions, when this issue is a workpaper and the viewer has
+              a step available. Renders nothing otherwise — including on a
+              filed workpaper, where the absence of buttons IS the rule. The
+              picker above stays: the actions are a shortcut past it, not a
+              replacement for every status change. */}
+          <ReviewActionsRow wsId={wsId} issueId={issue.id} />
           <PropRow label={t(($) => $.detail.prop_assignee)}>
             <AssigneePicker assigneeType={issue.assignee_type} assigneeId={issue.assignee_id} onUpdate={handleUpdateField} align="start" />
           </PropRow>
@@ -3522,5 +3529,18 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         </AnimatedRightSidebar>
       </ResizablePanel>
     </ResizablePanelGroup>
+  );
+}
+
+
+/**
+ * The review actions, laid out as a property row so they sit with the status
+ * they change rather than floating elsewhere on the page.
+ */
+function ReviewActionsRow({ wsId, issueId }: { wsId: string; issueId: string }) {
+  return (
+    <div className="col-span-2 pt-2">
+      <ReviewActions wsId={wsId} issueId={issueId} />
+    </div>
   );
 }

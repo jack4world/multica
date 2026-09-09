@@ -383,6 +383,23 @@ func TestCancellingAWorkpaperNeedsAReviewerRoleOrAdmin(t *testing.T) {
 			t.Fatalf("an admin could not cancel: %s", d.Reason)
 		}
 	})
+	t.Run("the preparer may not, whatever rank they hold", func(t *testing.T) {
+		// Cancelling disposes of the work. Leaving that with the person who did
+		// it lets an inconvenient workpaper be taken out of the chain by the one
+		// party the chain exists to check — the same hole as self-review,
+		// through a different door.
+		in := base()
+		in.From, in.To, in.ActorLevel = auditmode.StatusReviewL2, "cancelled", LevelL1
+		in.ActorMemberID, in.ActorIsAdmin = preparer, true
+		d := Decide(in)
+		if d.Allowed {
+			t.Fatal("the preparer cancelled their own workpaper")
+		}
+		if d.Code != DenySelfReview {
+			t.Errorf("code = %q, want %q", d.Code, DenySelfReview)
+		}
+	})
+
 	t.Run("plain member may not", func(t *testing.T) {
 		in := base()
 		in.From, in.To, in.ActorLevel = auditmode.StatusReviewL2, "cancelled", ""
