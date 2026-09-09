@@ -341,6 +341,12 @@ WITH target AS (
 ),
 cleared_vcs_pr_links AS (
     DELETE FROM issue_vcs_pull_request WHERE issue_id IN (SELECT target.id FROM target)
+),
+-- audit_workpaper extends an issue with audit-only facts and has no FK either,
+-- so it is swept through the SAME workspace-checked target for the same reason
+-- the link rows are: deleting by bare issue_id would reach another tenant's row.
+cleared_audit_workpaper AS (
+    DELETE FROM audit_workpaper WHERE issue_id IN (SELECT target.id FROM target)
 )
 DELETE FROM issue WHERE issue.id IN (SELECT target.id FROM target);
 

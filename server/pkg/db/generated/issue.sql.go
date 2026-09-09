@@ -382,6 +382,9 @@ WITH target AS (
 ),
 cleared_vcs_pr_links AS (
     DELETE FROM issue_vcs_pull_request WHERE issue_id IN (SELECT target.id FROM target)
+),
+cleared_audit_workpaper AS (
+    DELETE FROM audit_workpaper WHERE issue_id IN (SELECT target.id FROM target)
 )
 DELETE FROM issue WHERE issue.id IN (SELECT target.id FROM target)
 `
@@ -407,6 +410,9 @@ type DeleteIssueParams struct {
 // when a caller passes a foreign issue_id with its own workspace_id (the issue
 // itself is correctly untouched, but the links are already gone) — the exact
 // cross-tenant leak the #1661 guard above exists to prevent.
+// audit_workpaper extends an issue with audit-only facts and has no FK either,
+// so it is swept through the SAME workspace-checked target for the same reason
+// the link rows are: deleting by bare issue_id would reach another tenant's row.
 func (q *Queries) DeleteIssue(ctx context.Context, arg DeleteIssueParams) error {
 	_, err := q.db.Exec(ctx, deleteIssue, arg.ID, arg.WorkspaceID)
 	return err

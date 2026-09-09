@@ -1987,6 +1987,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/resources", h.CreateProjectResource)
 					r.Put("/resources/{resourceId}", h.UpdateProjectResource)
 					r.Delete("/resources/{resourceId}", h.DeleteProjectResource)
+					// Reviewer ranks for the audit review chain. Reads are open
+					// to any member — a reviewer needs to know who to hand a
+					// workpaper to. Writes are owner/admin and human-only,
+					// gated inside the handlers.
+					r.Get("/audit-roles", h.ListAuditRoles)
+					r.Put("/audit-roles", h.SetAuditRole)
+					r.Delete("/audit-roles/{memberId}", h.DeleteAuditRole)
 				})
 			})
 

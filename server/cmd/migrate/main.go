@@ -299,6 +299,9 @@ var concurrentIndexCleanups = map[string]string{
 	"445_comment_delegated_failure_unsettled_index":             "idx_comment_delegated_failure_unsettled",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 	"452_agent_task_pending_thread_unique":                      "idx_one_pending_task_per_issue_agent_thread",
+	"458_audit_role_pkey_index":                                 "audit_role_pkey_uidx",
+	"460_audit_role_project_member_uidx":                        "audit_role_project_member_uidx",
+	"462_audit_workpaper_pkey_index":                            "audit_workpaper_pkey_uidx",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

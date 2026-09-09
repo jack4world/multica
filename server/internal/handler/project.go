@@ -655,6 +655,16 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to delete project views")
 		return
 	}
+	// Reviewer ranks are scoped to this engagement and mean nothing without it.
+	// No cascades in this schema, so the cleanup is explicit and shares the
+	// project delete's transaction.
+	if err := qtx.DeleteAuditRolesForProject(r.Context(), db.DeleteAuditRolesForProjectParams{
+		ProjectID:   project.ID,
+		WorkspaceID: project.WorkspaceID,
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete project audit roles")
+		return
+	}
 	if err := qtx.DeleteProject(r.Context(), db.DeleteProjectParams{
 		ID:          project.ID,
 		WorkspaceID: project.WorkspaceID,
