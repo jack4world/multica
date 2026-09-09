@@ -1,0 +1,16 @@
+-- Audit mode: does this workspace represent an auditee whose projects are audit
+-- engagements and whose issues inside them are workpapers?
+--
+-- A column rather than a key in workspace.settings, because the flag gates a
+-- permission mechanism (the three-level review gate) and settings is replaced
+-- wholesale by PATCH /api/workspaces/{id} — `settings = COALESCE(narg, settings)`
+-- against a body the client marshals in full. An admin saving an unrelated
+-- preference would silently drop the flag and disable the gate.
+--
+-- Timestamp rather than boolean, per the repo convention that a state change is
+-- recorded as <state>_at. NULL means audit mode was never enabled; the value is
+-- when it was, which an audit product wants on the record anyway.
+--
+-- No index: workspace is only ever read by primary key or by the unique slug,
+-- and both already have one.
+ALTER TABLE workspace ADD COLUMN audit_mode_enabled_at TIMESTAMPTZ;

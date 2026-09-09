@@ -314,6 +314,39 @@ When the glossary doesn't cover a term, look at:
 
 ---
 
+## 4. Audit mode vocabulary override
+
+The audit vertical (`docs/audit/CONTEXT.md`, ADR-0002) renders three platform nouns differently. This table is part of the contract: audit-mode copy that follows it is correct, and copy that reverts to the base glossary is a bug.
+
+The override is **i18n only**. Code identifiers, DB columns, API fields and routes stay `issue`, `workspace` and `project` everywhere.
+
+| Platform noun | Base glossary | Audit mode (en) | Audit mode (zh-Hans) | Scope |
+| --- | --- | --- | --- | --- |
+| `workspace` | Workspace / 工作区 | **Auditee** | **被审计单位** | Everywhere in audit mode |
+| `project` | Project / 项目 | **Engagement** | **审计项目** | Everywhere in audit mode |
+| `issue` | Issue / 任务 | **Workpaper** | **工作底稿** | UI scoped to an engagement |
+| `issue` | Issue / 任务 | **Remediation Item** | **整改事项** | Remediation boards and lists |
+
+`issue` cannot be overridden globally: an issue inside an engagement is a workpaper, and one outside every engagement is a remediation item. Scope the override per UI region.
+
+### Not overridden
+
+These keep their base glossary rendering in audit mode. Listed explicitly so the question does not get re-litigated:
+
+`agent` (智能体), Run (运行), `skill` (lowercase English), `comment` (评论), `label` (标签), `member` (成员), `inbox` (收件箱), `autopilot` (自动化), **`assignee` (负责人)**.
+
+`assignee` is the interesting one. A workpaper's owner is its preparer while it is being drafted and its reviewer once review starts; "负责人" covers both, and overriding it to either would make the label lie during the other phase.
+
+### Locales
+
+The override ships for `en` and `zh-Hans`. `ja` / `ko` fall back to the base glossary — the vertical has no business in those markets, and a half-translated audit vocabulary is worse than an untranslated one.
+
+### Seeded catalog names are not i18n strings
+
+The review-chain statuses and audit property definitions are database rows seeded once per workspace (`server/internal/auditmode`). They are chosen at enable time from the locale the caller asks for and are editable afterwards; changing this table does not restate them.
+
+---
+
 ## Updating this page
 
 If you change a rule here, also:

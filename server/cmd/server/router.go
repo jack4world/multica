@@ -1965,6 +1965,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				})
 			})
 
+			// Audit mode (the audit vertical's workspace switch). Reads are
+			// open to any member — every client needs it to know whether this
+			// workspace is an auditee. Enabling is owner/admin, human-only,
+			// and one-way; see internal/handler/audit_mode.go.
+			r.Route("/api/audit-mode", func(r chi.Router) {
+				r.Get("/", h.GetAuditMode)
+				r.Post("/", h.EnableAuditMode)
+			})
+
 			// Projects
 			r.Route("/api/projects", func(r chi.Router) {
 				r.Get("/search", h.SearchProjects)

@@ -106,6 +106,10 @@ type WorkspaceResponse struct {
 	AvatarURL   *string `json:"avatar_url"`
 	CreatedAt   string  `json:"created_at"`
 	UpdatedAt   string  `json:"updated_at"`
+	// AuditMode is present on every workspace so a client can pick its
+	// vocabulary and boards from the workspace it already fetched, without a
+	// second round trip on every navigation.
+	AuditMode AuditModeResponse `json:"audit_mode"`
 }
 
 func (h *Handler) workspaceToResponse(w db.Workspace) WorkspaceResponse {
@@ -135,6 +139,7 @@ func (h *Handler) workspaceToResponse(w db.Workspace) WorkspaceResponse {
 		AvatarURL:   h.resolveAvatarURLPtr(textToPtr(w.AvatarUrl)),
 		CreatedAt:   timestampToString(w.CreatedAt),
 		UpdatedAt:   timestampToString(w.UpdatedAt),
+		AuditMode:   auditModeResponse(w.AuditModeEnabledAt),
 	}
 }
 
