@@ -1,0 +1,75 @@
+# Audit
+
+The internal-audit vertical built on the Multica platform. It covers state-owned-enterprise internal audit and separation-of-office audit, not public accounting firm external audit.
+
+Terms below are the contract. Where a term maps onto a platform entity, the platform entity is the thing that exists; the audit term is what users call it. Chinese renderings are overridden at the i18n layer only — code identifiers stay platform identifiers (ADR-0002).
+
+## Language
+
+### Structure
+
+**被审计单位 (Auditee)**:
+The organization under audit. Is a platform workspace. The unit of access isolation: seeing an auditee's data means being a member of its workspace.
+_Avoid_: 客户, 工作区, client, tenant
+
+**审计项目 (Engagement)**:
+One audit of one auditee covering one period. Is a platform project. An auditee accumulates engagements over the years and they share its documents and configuration.
+_Avoid_: 项目, 审计任务, audit project
+
+**工作底稿 (Workpaper)**:
+The record of executing one audit procedure and the conclusion drawn from it. Is a platform issue that belongs to an engagement. Belonging to an engagement is what makes an issue a workpaper — there is no other kind of issue inside one.
+_Avoid_: 任务, issue, 底稿附件
+
+**审计程序 (Procedure)**:
+A planned piece of examination work, identified by a procedure code. One-to-one with a workpaper; when one procedure needs splitting, child workpapers inherit its code. Not an entity of its own.
+_Avoid_: 步骤, task, run
+
+**审计资料 (Document)**:
+Original material belonging to an auditee, filed under a classification tree. Vouchers, policy documents and contracts are categories of it, not separate kinds. Uses a platform attachment as its binary carrier.
+_Avoid_: 附件, 凭证 (a voucher is one category of document, not a synonym)
+
+### People
+
+**编制人 (Preparer)**:
+The person who owned a workpaper at the moment it was submitted for review. Distinct from its creator and from whoever currently owns it — once review starts, ownership moves to the reviewer.
+_Avoid_: 作者, 创建者, 负责人, author
+
+**复核人 (Reviewer)**:
+One of exactly three levels: 主审 (l1), 项目经理 (l2), 部门负责人 (l3). A preparer may never review their own workpaper, and no person may hold two levels on the same workpaper.
+_Avoid_: 审核人, 批准人, approver
+
+### Process
+
+**复核 (Review)**:
+A reviewer's ruling on a workpaper: pass, or reject. Rejection always returns the workpaper to its preparer, never to the level below.
+_Avoid_: 审核, 审批, 批准
+
+**归档 (Archived)**:
+The terminal state a workpaper reaches after passing all three review levels. Immutable: a correction is a new version, never an edit. Unrelated to a status definition being retired from the catalog.
+_Avoid_: 完成, 锁定, 封存, locked
+
+**移交 (Handover)**:
+An agent's explicit declaration that its draft is ready for a human to adopt. An agent run finishing is not a handover.
+_Avoid_: 完成, 提交, submit
+
+### Findings
+
+**疑点 (Observation)**:
+An anomaly reported by an agent or a person that has not been verified yet. Carries a business dedup key, so the same anomaly reported twice is one observation.
+_Avoid_: 风险, 发现, 问题, 线索, exception
+
+**审计发现 (Finding)**:
+A problem confirmed to be real. Not a stored entity: a finding is the remediation item that one or more confirmed observations point at.
+_Avoid_: 疑点, 风险
+
+**整改事项 (Remediation Item)**:
+Something the auditee is required to fix, with an owner and a deadline. Is a platform issue that belongs to no engagement — it outlives the audit that found it.
+_Avoid_: 问题, 发现
+
+**风险 (Risk)**:
+Keeps its audit meaning only: the planning-stage assessment of where material misstatement is likely, used to decide what to examine and how deeply. Never a word for an observation or a finding.
+_Avoid_: using it for anything a procedure discovers
+
+**密级 (Confidentiality Label)**:
+A display label on an auditee. It filters nothing — access isolation is workspace membership and nothing else (ADR-0001).
+_Avoid_: 权限, 访问级别, access level
