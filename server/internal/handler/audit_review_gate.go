@@ -129,7 +129,10 @@ func writeReviewGateError(w http.ResponseWriter, err error) bool {
 	case auditgate.DenyLevelRequired, auditgate.DenySelfReview, auditgate.DenyAgent:
 		status = http.StatusForbidden
 	}
-	writeError(w, status, denial.decision.Reason)
+	// The CODE, not just the sentence. The client maps it to copy in the
+	// reader's language; without it a Chinese-locale auditor is shown an
+	// English sentence naming a machine identifier they have never seen.
+	writeErrorCode(w, status, string(denial.decision.Code), denial.decision.Reason)
 	return true
 }
 
@@ -322,73 +325,15 @@ func (h *Handler) decideReviewGate(ctx context.Context, q *db.Queries, g *review
 		}
 	}
 
-	in := auditgate.Input{
-		InEngagement:       g.prev.ProjectID.Valid,
-		TargetInEngagement: g.targetProject.Valid,
-		ProjectChanged:     g.projectChanged(),
-		From:               g.prev.Status,
-		To:                 g.target,
-		Reason:             g.reason,
-		ActorIsAgent:       g.actorType == "agent",
+	in, actingMemberID, err := h.auditGateInput(ctx, q, g, decided)
+	if err != nil {
+		return auditgate.Decision{}, pgtype.UUID{}, decided, false, err
 	}
-
-	if !in.ActorIsAgent {
-		// Read through q, not h.Queries: the actor's membership and admin status
-		// are decision inputs, and reading them from a different snapshot than
-		// the role and preparer rows would break the invariant this whole
-		// function rests on.
-		actorUUID, parseErr := util.ParseUUID(g.actorID)
-		if parseErr != nil {
-			return auditgate.Decision{
-				Code:   auditgate.DenyLevelRequired,
-				Reason: "you are not a member of this auditee and cannot move its workpapers",
-			}, pgtype.UUID{}, decided, true, nil
-		}
-		member, memberErr := q.GetMemberByUserAndWorkspace(ctx, db.GetMemberByUserAndWorkspaceParams{
-			UserID:      actorUUID,
-			WorkspaceID: g.prev.WorkspaceID,
-		})
-		if memberErr != nil {
-			// Not a member of the auditee: the caller reached this issue some
-			// other way, and holds no standing in its review chain.
-			if errors.Is(memberErr, pgx.ErrNoRows) {
-				return auditgate.Decision{
-					Code:   auditgate.DenyLevelRequired,
-					Reason: "you are not a member of this auditee and cannot move its workpapers",
-				}, pgtype.UUID{}, decided, true, nil
-			}
-			return auditgate.Decision{}, pgtype.UUID{}, decided, false, memberErr
-		}
-		actingMemberID = member.ID
-		in.ActorMemberID = util.UUIDToString(member.ID)
-		in.ActorIsAdmin = member.Role == "owner" || member.Role == "admin"
-
-		// Ranks are scoped to an engagement. Read them from the one the issue
-		// is in now; a write that moves it between engagements is refused
-		// outright while it carries a chain status, so there is no case where
-		// the destination's ranks would be the ones to consult.
-		roleProject := g.prev.ProjectID
-		if !roleProject.Valid {
-			roleProject = g.targetProject
-		}
-		level, levelErr := q.GetAuditRoleLevel(ctx, db.GetAuditRoleLevelParams{
-			ProjectID: roleProject,
-			MemberID:  member.ID,
-		})
-		if levelErr != nil && !errors.Is(levelErr, pgx.ErrNoRows) {
-			return auditgate.Decision{}, pgtype.UUID{}, decided, false, levelErr
-		}
-		if levelErr == nil {
-			in.ActorLevel = auditgate.Level(level)
-		}
-	}
-
-	preparer, preparerErr := q.GetWorkpaperPreparer(ctx, g.prev.ID)
-	if preparerErr != nil && !errors.Is(preparerErr, pgx.ErrNoRows) {
-		return auditgate.Decision{}, pgtype.UUID{}, decided, false, preparerErr
-	}
-	if preparerErr == nil {
-		in.PreparerID = util.UUIDToString(preparer)
+	if in.RefusedActor {
+		return auditgate.Decision{
+			Code:   auditgate.DenyLevelRequired,
+			Reason: "you are not a member of this auditee and cannot move its workpapers",
+		}, pgtype.UUID{}, decided, true, nil
 	}
 
 	return auditgate.Decide(in), actingMemberID, decided, true, nil
@@ -444,4 +389,82 @@ func (h *Handler) preflightBatchReviewGate(ctx context.Context, issueIDs []strin
 		}
 	}
 	return nil
+}
+
+// auditGateInput collects the facts a decision rests on: the actor's standing
+// in the auditee, their rank on this engagement, and who prepared the
+// workpaper.
+//
+// Shared by the write path and the read-only actions endpoint on purpose. The
+// interface must be offered exactly what the gate would accept, and the surest
+// way to guarantee that is for both to be answering questions about the same
+// values rather than each assembling their own.
+func (h *Handler) auditGateInput(ctx context.Context, q *db.Queries, g *reviewGate, decided db.Issue) (auditgate.Input, pgtype.UUID, error) {
+	var actingMemberID pgtype.UUID
+	in := auditgate.Input{
+		InEngagement:       g.prev.ProjectID.Valid,
+		TargetInEngagement: g.targetProject.Valid,
+		ProjectChanged:     g.projectChanged(),
+		From:               g.prev.Status,
+		To:                 g.target,
+		Reason:             g.reason,
+		ActorIsAgent:       g.actorType == "agent",
+	}
+
+	if !in.ActorIsAgent {
+		// Read through q, not h.Queries: the actor's membership and admin status
+		// are decision inputs, and reading them from a different snapshot than
+		// the role and preparer rows would break the invariant this whole
+		// function rests on.
+		actorUUID, parseErr := util.ParseUUID(g.actorID)
+		if parseErr != nil {
+			in.RefusedActor = true
+			return in, pgtype.UUID{}, nil
+		}
+		member, memberErr := q.GetMemberByUserAndWorkspace(ctx, db.GetMemberByUserAndWorkspaceParams{
+			UserID:      actorUUID,
+			WorkspaceID: g.prev.WorkspaceID,
+		})
+		if memberErr != nil {
+			// Not a member of the auditee: the caller reached this issue some
+			// other way, and holds no standing in its review chain.
+			if errors.Is(memberErr, pgx.ErrNoRows) {
+				in.RefusedActor = true
+				return in, pgtype.UUID{}, nil
+			}
+			return in, pgtype.UUID{}, memberErr
+		}
+		actingMemberID = member.ID
+		in.ActorMemberID = util.UUIDToString(member.ID)
+		in.ActorIsAdmin = member.Role == "owner" || member.Role == "admin"
+
+		// Ranks are scoped to an engagement. Read them from the one the issue
+		// is in now; a write that moves it between engagements is refused
+		// outright while it carries a chain status, so there is no case where
+		// the destination's ranks would be the ones to consult.
+		roleProject := g.prev.ProjectID
+		if !roleProject.Valid {
+			roleProject = g.targetProject
+		}
+		level, levelErr := q.GetAuditRoleLevel(ctx, db.GetAuditRoleLevelParams{
+			ProjectID: roleProject,
+			MemberID:  member.ID,
+		})
+		if levelErr != nil && !errors.Is(levelErr, pgx.ErrNoRows) {
+			return in, pgtype.UUID{}, levelErr
+		}
+		if levelErr == nil {
+			in.ActorLevel = auditgate.Level(level)
+		}
+	}
+
+	preparer, preparerErr := q.GetWorkpaperPreparer(ctx, g.prev.ID)
+	if preparerErr != nil && !errors.Is(preparerErr, pgx.ErrNoRows) {
+		return in, pgtype.UUID{}, preparerErr
+	}
+	if preparerErr == nil {
+		in.PreparerID = util.UUIDToString(preparer)
+	}
+
+	return in, actingMemberID, nil
 }

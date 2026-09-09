@@ -77,6 +77,12 @@ export interface UpdateIssueRequest {
    *  MUL-3375). The assignee/status change still applies. Control field —
    *  strip from optimistic cache patches; never written onto the Issue. */
   suppress_run?: boolean;
+  /**
+   * Accompanies an audit review decision. Required when a reviewer returns a
+   * workpaper to its preparer: "rejected" with no reason leaves them told their
+   * work does not stand without being told what to fix.
+   */
+  review_note?: string;
 }
 
 /**

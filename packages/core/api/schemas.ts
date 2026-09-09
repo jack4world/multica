@@ -2029,6 +2029,31 @@ export const agentBuilderRuntimeSwitchFallback = (
   requestedRuntimeID: string,
 ): AgentBuilderRuntimeSwitch => ({ runtime_id: requestedRuntimeID });
 
+// Audit review interface. The server answers "what may this viewer do with
+// this workpaper" so the client never re-implements the review chain — a client
+// that knew the order of the levels would be a second copy of a control, and
+// two copies drift.
+export const AuditActionSchema = z.object({
+  event: z.string().default(""),
+  to: z.string().default(""),
+  requires_reason: z.boolean().default(false),
+}).loose();
+
+export const AuditActionListSchema = z.array(AuditActionSchema);
+
+export const ReviewQueueItemSchema = z.object({
+  issue: IssueSchema,
+  level: z.string().default(""),
+  waiting_since: z.string().default(""),
+}).loose();
+
+export const ReviewQueueListSchema = z.array(ReviewQueueItemSchema);
+
+export const AuditModeSchema = z.object({
+  enabled: z.boolean().default(false),
+  enabled_at: z.string().nullable().default(null),
+}).loose();
+
 // Squad list responses carry lightweight membership previews used by hover
 // cards. The preview fields are additive API fields, so older backends default
 // cleanly to no preview instead of breaking newer frontends.

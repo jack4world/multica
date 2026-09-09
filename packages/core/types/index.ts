@@ -330,3 +330,5 @@ export type {
   WorkspaceSubscriptionSeatReconcileResult,
   CreateWorkspaceSubscriptionPortalResponse,
 } from "./billing";
+
+export type { AuditAction, ReviewQueueItem, AuditMode } from "./audit";

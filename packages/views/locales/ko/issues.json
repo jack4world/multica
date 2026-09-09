@@ -868,5 +868,42 @@
     "surface_loading": "{{name}} 불러오는 중…",
     "surface_unavailable": "{{name}}의 인터페이스를 불러올 수 없습니다. 설치된 버전에 포함되어 있지 않을 수 있습니다.",
     "surface_navigated": "{{name}}이(가) 패널을 외부에서 불러온 페이지로 바꾸려 했습니다. 중지하고 연결을 끊었습니다. 워크스페이스 관리자에게 알리세요."
+  },
+  "audit": {
+    "queue_title": "Review queue",
+    "queue_subtitle": "Workpapers waiting on the level you hold.",
+    "queue_empty": "Nothing is waiting on you.",
+    "queue_loading": "Loading...",
+    "actions_label": "Review actions",
+    "reason_label": "Reason for returning",
+    "reason_placeholder": "What does the preparer need to fix?",
+    "confirm_return": "Return to preparer",
+    "cancel_return": "Cancel",
+    "action": {
+      "workpaper_submitted": "Submit for review",
+      "workpaper_review_passed": "Pass to next level",
+      "workpaper_review_rejected": "Return to preparer",
+      "workpaper_filed": "Approve and file",
+      "workpaper_cancelled": "Cancel workpaper",
+      "workpaper_draft_adopted": "Adopt draft",
+      "workpaper_handed_over": "Hand over draft",
+      "fallback": "Change status"
+    },
+    "level": {
+      "reviewer_l1": "Lead auditor",
+      "reviewer_l2": "Engagement manager",
+      "reviewer_l3": "Department head",
+      "fallback": "Reviewer"
+    },
+    "refusal": {
+      "level_required": "This step needs a different reviewer level on this engagement.",
+      "self_review": "You prepared this workpaper, so you cannot review it. Hand it to another reviewer.",
+      "filed": "This workpaper is filed and cannot be changed. Issue a corrected version instead.",
+      "agent_not_permitted": "An agent cannot make this review decision.",
+      "illegal_transition": "The review chain advances one level at a time; this step is not available.",
+      "leaves_chain": "A workpaper stays in the review chain until it is filed or cancelled.",
+      "reason_required": "Returning a workpaper needs a reason.",
+      "unknown": "This action could not be completed."
+    }
   }
 }

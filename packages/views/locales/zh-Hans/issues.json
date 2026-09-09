@@ -868,5 +868,42 @@
     "surface_loading": "正在加载 {{name}}…",
     "surface_unavailable": "{{name}} 的界面无法加载，已安装的版本可能不包含它。",
     "surface_navigated": "{{name}} 试图把面板替换成从别处加载的页面。已经拦下并断开连接，建议告知工作区管理员。"
+  },
+  "audit": {
+    "queue_title": "待我复核",
+    "queue_subtitle": "等着你这一级处理的工作底稿。",
+    "queue_empty": "没有等你处理的底稿。",
+    "queue_loading": "加载中...",
+    "actions_label": "复核操作",
+    "reason_label": "退回理由",
+    "reason_placeholder": "编制人需要修改什么？",
+    "confirm_return": "退回编制人",
+    "cancel_return": "取消",
+    "action": {
+      "workpaper_submitted": "提交复核",
+      "workpaper_review_passed": "通过，送下一级",
+      "workpaper_review_rejected": "退回编制人",
+      "workpaper_filed": "通过并归档",
+      "workpaper_cancelled": "取消底稿",
+      "workpaper_draft_adopted": "采纳草稿",
+      "workpaper_handed_over": "交付草稿",
+      "fallback": "修改状态"
+    },
+    "level": {
+      "reviewer_l1": "一级复核（主审）",
+      "reviewer_l2": "二级复核（项目经理）",
+      "reviewer_l3": "三级复核（部门负责人）",
+      "fallback": "复核人"
+    },
+    "refusal": {
+      "level_required": "这一步需要该审计项目上另一个级别的复核人。",
+      "self_review": "这份底稿是你编制的，不能由你复核。请交给另一位复核人。",
+      "filed": "这份底稿已归档，不能再修改。需要更正请出具新版本。",
+      "agent_not_permitted": "智能体不能做复核决定。",
+      "illegal_transition": "复核链一次只能推进一级，这一步现在走不了。",
+      "leaves_chain": "工作底稿在归档或取消之前，必须留在复核链里。",
+      "reason_required": "退回工作底稿必须填写理由。",
+      "unknown": "这个操作没能完成。"
+    }
   }
 }

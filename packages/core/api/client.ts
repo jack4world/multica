@@ -117,7 +117,10 @@ import type {
   CreateLabelRequest,
   UpdateLabelRequest,
   ListLabelsResponse,
+  AuditAction,
+  AuditMode,
   ListIssueStatusesResponse,
+  ReviewQueueItem,
   IssueStatusCategory,
   IssueStatusEntry,
   CreateIssueStatusRequest,
@@ -381,7 +384,10 @@ import {
   EMPTY_NOTIFICATION_PREFERENCE_RESPONSE,
   LabelSchema,
   ListLabelsResponseSchema,
+  AuditActionListSchema,
+  AuditModeSchema,
   ListIssueStatusesResponseSchema,
+  ReviewQueueListSchema,
   IssueStatusEntrySchema,
   IssuePropertySchema,
   ListPropertiesResponseSchema,
@@ -3662,6 +3668,32 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/issue-statuses${query}`);
     return parseWithFallback(raw, ListIssueStatusesResponseSchema, EMPTY_LIST_ISSUE_STATUSES_RESPONSE, {
       endpoint: "GET /api/issue-statuses",
+    });
+  }
+
+  // Audit review interface. Both reads answer from the same matrix and the same
+  // reviewer-rank table the server enforces with, so the client never has to
+  // know the order of the levels.
+  async listAuditActions(issueId: string): Promise<AuditAction[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/audit-actions`);
+    // An empty list is a legitimate answer — a filed workpaper, someone else's
+    // level, one's own work — so the fallback is the same shape as the success.
+    return parseWithFallback(raw, AuditActionListSchema, [], {
+      endpoint: "GET /api/issues/{id}/audit-actions",
+    });
+  }
+
+  async listReviewQueue(): Promise<ReviewQueueItem[]> {
+    const raw = await this.fetch<unknown>(`/api/audit/review-queue`);
+    return parseWithFallback(raw, ReviewQueueListSchema, [], {
+      endpoint: "GET /api/audit/review-queue",
+    });
+  }
+
+  async getAuditMode(): Promise<AuditMode> {
+    const raw = await this.fetch<unknown>(`/api/audit-mode`);
+    return parseWithFallback(raw, AuditModeSchema, { enabled: false, enabled_at: null }, {
+      endpoint: "GET /api/audit-mode",
     });
   }
 

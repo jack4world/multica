@@ -112,6 +112,10 @@ type Input struct {
 	// Reason is the free text accompanying the write. Required on a rejection
 	// and ignored otherwise.
 	Reason string
+	// RefusedActor marks a caller with no standing in the auditee at all. The
+	// collector sets it rather than deciding, so one place assembles the facts
+	// and one place applies the rules.
+	RefusedActor bool
 }
 
 // Decision is the answer. RecordPreparer asks the caller to snapshot the actor
@@ -185,6 +189,10 @@ func isAudit(status string) bool {
 
 // Decide answers one status write.
 func Decide(in Input) Decision {
+	if in.RefusedActor {
+		return deny(DenyLevelRequired,
+			"you are not a member of this auditee and cannot move its workpapers")
+	}
 	if !in.InEngagement && !in.TargetInEngagement {
 		return allow()
 	}
@@ -247,6 +255,14 @@ func Decide(in Input) Decision {
 		if in.ActorLevel == "" && !in.ActorIsAdmin {
 			return deny(DenyLevelRequired,
 				"cancelling a workpaper needs a reviewer role on this engagement, or workspace admin")
+		}
+		// The preparer cannot cancel their own workpaper, for the same reason
+		// they cannot review it. Cancelling disposes of the work; leaving that
+		// with the person who did it lets an inconvenient workpaper be taken
+		// out of the chain by the one party the chain exists to check.
+		if in.PreparerID != "" && in.ActorMemberID == in.PreparerID {
+			return deny(DenySelfReview,
+				"you prepared this workpaper and cannot cancel it; ask a reviewer on this engagement")
 		}
 		return record(EventCancelled, in.ActorLevel)
 	}

@@ -169,6 +169,126 @@ func (q *Queries) ListAuditeeWorkspaceIDs(ctx context.Context) ([]pgtype.UUID, e
 	return items, nil
 }
 
+const listReviewQueueForMember = `-- name: ListReviewQueueForMember :many
+SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, r.level::text AS reviewer_level, w.preparer_id
+FROM audit_role r
+JOIN issue i
+  ON i.project_id = r.project_id
+ AND i.status = CASE r.level
+     WHEN 'reviewer_l1' THEN 'review_l1'
+     WHEN 'reviewer_l2' THEN 'review_l2'
+     WHEN 'reviewer_l3' THEN 'review_l3'
+ END
+LEFT JOIN audit_workpaper w ON w.issue_id = i.id
+WHERE r.workspace_id = $1
+  AND r.member_id = $2
+  AND (w.preparer_id IS NULL OR w.preparer_id <> $2)
+ORDER BY i.updated_at ASC, i.id ASC
+LIMIT $3
+`
+
+type ListReviewQueueForMemberParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	MemberID    pgtype.UUID `json:"member_id"`
+	Limit       int32       `json:"limit"`
+}
+
+type ListReviewQueueForMemberRow struct {
+	ID                 pgtype.UUID        `json:"id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	Title              string             `json:"title"`
+	Description        pgtype.Text        `json:"description"`
+	Status             string             `json:"status"`
+	Priority           string             `json:"priority"`
+	AssigneeType       pgtype.Text        `json:"assignee_type"`
+	AssigneeID         pgtype.UUID        `json:"assignee_id"`
+	CreatorType        string             `json:"creator_type"`
+	CreatorID          pgtype.UUID        `json:"creator_id"`
+	ParentIssueID      pgtype.UUID        `json:"parent_issue_id"`
+	AcceptanceCriteria []byte             `json:"acceptance_criteria"`
+	ContextRefs        []byte             `json:"context_refs"`
+	Position           float64            `json:"position"`
+	DueDate            pgtype.Date        `json:"due_date"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	Number             int32              `json:"number"`
+	ProjectID          pgtype.UUID        `json:"project_id"`
+	OriginType         pgtype.Text        `json:"origin_type"`
+	OriginID           pgtype.UUID        `json:"origin_id"`
+	FirstExecutedAt    pgtype.Timestamptz `json:"first_executed_at"`
+	StartDate          pgtype.Date        `json:"start_date"`
+	Metadata           []byte             `json:"metadata"`
+	Stage              pgtype.Int4        `json:"stage"`
+	Properties         []byte             `json:"properties"`
+	Revision           int64              `json:"revision"`
+	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
+	ReviewerLevel      string             `json:"reviewer_level"`
+	PreparerID         pgtype.UUID        `json:"preparer_id"`
+}
+
+// Workpapers waiting on THIS member's rank, across every engagement they hold
+// one on.
+//
+// The join is the point. Filtering projects and statuses independently — which
+// is all the ordinary issue list can do — returns the cross product: a viewer
+// who is 主审 on one engagement and 项目经理 on another would be shown the
+// other engagement's 一级复核 workpapers too, which are not theirs to review.
+// Pairing each engagement with the rank held THERE is what makes the queue
+// correct rather than merely filtered.
+//
+// The preparer is excluded here as well as refused by the gate: a workpaper
+// nobody may act on has no business sitting in their queue.
+func (q *Queries) ListReviewQueueForMember(ctx context.Context, arg ListReviewQueueForMemberParams) ([]ListReviewQueueForMemberRow, error) {
+	rows, err := q.db.Query(ctx, listReviewQueueForMember, arg.WorkspaceID, arg.MemberID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReviewQueueForMemberRow{}
+	for rows.Next() {
+		var i ListReviewQueueForMemberRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeType,
+			&i.AssigneeID,
+			&i.CreatorType,
+			&i.CreatorID,
+			&i.ParentIssueID,
+			&i.AcceptanceCriteria,
+			&i.ContextRefs,
+			&i.Position,
+			&i.DueDate,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Number,
+			&i.ProjectID,
+			&i.OriginType,
+			&i.OriginID,
+			&i.FirstExecutedAt,
+			&i.StartDate,
+			&i.Metadata,
+			&i.Stage,
+			&i.Properties,
+			&i.Revision,
+			&i.LastActivityAt,
+			&i.ReviewerLevel,
+			&i.PreparerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaceActivityForDay = `-- name: ListWorkspaceActivityForDay :many
 SELECT id, issue_id, actor_type, actor_id, action, details, created_at
 FROM activity_log
