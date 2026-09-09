@@ -247,6 +247,20 @@ make check
 
 Do not claim verification passed unless you ran it. If you skip checks because the change is docs-only or the user asked not to run them, say so.
 
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `jack4world/multica` (the fork), via the `gh` CLI. The repo is public. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The default five-role vocabulary; all five labels exist in the tracker. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context: `CONTEXT-MAP.md` at the root points to each context's glossary, and ADRs live in `docs/adr/`. Platform has no `CONTEXT.md` — its vocabulary contract is the conventions page named above. See `docs/agents/domain.md`.
+
 ## Commits and Releases
 
 - Commits should be atomic and use conventional prefixes: `feat(scope)`, `fix(scope)`, `refactor(scope)`, `docs`, `test(scope)`, `chore(scope)`.
