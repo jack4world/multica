@@ -899,6 +899,7 @@
     "refusal": {
       "level_required": "This step needs a different reviewer level on this engagement.",
       "self_review": "You prepared this workpaper, so you cannot review it. Hand it to another reviewer.",
+      "same_reviewer": "You already signed an earlier level of this workpaper. Two levels of review mean two people, so this one has to be someone else.",
       "filed": "This workpaper is filed and cannot be changed. Issue a corrected version instead.",
       "agent_not_permitted": "An agent cannot make this review decision.",
       "illegal_transition": "The review chain advances one level at a time; this step is not available.",

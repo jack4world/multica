@@ -302,3 +302,17 @@ SELECT m.user_id
 FROM audit_role ar
 JOIN member m ON m.id = ar.member_id
 WHERE ar.project_id = $1 AND ar.level = sqlc.arg('level')::text;
+
+-- name: ListWorkpaperSignatures :many
+-- Who has already signed this workpaper, and at which level.
+--
+-- Read from the TRAIL, not from the seating chart: a reviewer's rank changes
+-- mid-flight for ordinary reasons, and "two levels of review" is a claim about
+-- two people having looked, not about two ranks having existed. actor_id is a
+-- user id here, like every other row in this table.
+SELECT actor_id, details->>'level' AS level
+FROM activity_log
+WHERE issue_id = $1
+  AND action IN ('workpaper_review_passed', 'workpaper_filed')
+  AND actor_id IS NOT NULL
+  AND details->>'level' IS NOT NULL;

@@ -398,3 +398,68 @@ func TestDeletingAWorkpaperTakesItsPreparerRecordWithIt(t *testing.T) {
 		t.Errorf("audit_workpaper rows = %d after deleting the issue, want 0", n)
 	}
 }
+
+// Two levels of review mean two PEOPLE looked at it.
+//
+// The gate checked the rank the actor holds NOW and whether they prepared the
+// workpaper — never who signed the level below. A reviewer's rank changes
+// mid-flight for ordinary reasons (a promotion, a transfer, someone covering an
+// absence), so one person could pass at 一级复核, be re-seated as 项目经理, and
+// sign the same workpaper again. The configured depth was then just a shape.
+func TestOnePersonCannotSignTwoLevelsOfTheSameWorkpaper(t *testing.T) {
+	f := newAuditFixture(t)
+	wp := f.workpaper(t, auditmode.StatusDrafting)
+	f.setStatus(t, wp, auditmode.StatusReviewL1, testUserID).Want(http.StatusOK)
+
+	// 主审 passes it on.
+	l1User := f.reviewerUsers[auditgate.LevelL1]
+	f.setStatus(t, wp, auditmode.StatusReviewL2, l1User).Want(http.StatusOK)
+
+	// The same person is re-seated one level up — a replacement, not a second
+	// rank: audit_role is unique per (engagement, member).
+	req := auditRequest(http.MethodPut, "/api/projects/"+f.projectID+"/audit-roles", f.workspaceID,
+		map[string]any{"member_id": f.reviewers[auditgate.LevelL1], "level": string(auditgate.LevelL2)})
+	testutil.Call(t, testHandler.SetAuditRole, withURLParam(req, "id", f.projectID)).Want(http.StatusOK)
+
+	// ...and tries to sign the level they just handed the workpaper to.
+	body := f.setStatus(t, wp, auditmode.StatusFiled, l1User).Want(http.StatusForbidden).Map()
+	if code, _ := body["code"].(string); code != "same_reviewer" {
+		t.Errorf("refused as %q, want same_reviewer — the reader has to learn that the SECOND signature is the problem, not their rank", code)
+	}
+	if got := f.statusOf(t, wp); got != auditmode.StatusReviewL2 {
+		t.Errorf("status = %q, want the refused signature to have changed nothing", got)
+	}
+
+	// Someone else at that rank can still file it, so the refusal is about the
+	// person and not about the step.
+	other := dbfx.User(t, "另一位项目经理", "mgr-"+uuid.NewString()[:8]+"@multica.ai")
+	otherMember := dbfx.Member(t, f.workspaceID, other, "member")
+	seat := auditRequest(http.MethodPut, "/api/projects/"+f.projectID+"/audit-roles", f.workspaceID,
+		map[string]any{"member_id": otherMember, "level": string(auditgate.LevelL2)})
+	testutil.Call(t, testHandler.SetAuditRole, withURLParam(seat, "id", f.projectID)).Want(http.StatusOK)
+	f.setStatus(t, wp, auditmode.StatusFiled, other).Want(http.StatusOK)
+}
+
+// The other half: signing the SAME level twice is what a rejection loop IS, and
+// must keep working. A rule that stopped it would make one rejection retire the
+// reviewer who caught the problem.
+func TestTheSameReviewerMaySignTheSameLevelAgainAfterARejection(t *testing.T) {
+	f := newAuditFixture(t)
+	wp := f.workpaper(t, auditmode.StatusDrafting)
+	l1User := f.reviewerUsers[auditgate.LevelL1]
+
+	f.setStatus(t, wp, auditmode.StatusReviewL1, testUserID).Want(http.StatusOK)
+	f.setStatus(t, wp, auditmode.StatusReviewL2, l1User).Want(http.StatusOK)
+
+	// 项目经理 sends it back to the preparer, who resubmits.
+	reject := auditRequest(http.MethodPatch, "/api/issues/"+wp, f.workspaceID, map[string]any{
+		"status":      auditmode.StatusDrafting,
+		"review_note": "抽样依据没写清楚",
+	})
+	reject.Header.Set("X-User-ID", f.reviewerUsers[auditgate.LevelL2])
+	testutil.Call(t, testHandler.UpdateIssue, withURLParam(reject, "id", wp)).Want(http.StatusOK)
+	f.setStatus(t, wp, auditmode.StatusReviewL1, testUserID).Want(http.StatusOK)
+
+	// The same 主审 signs their own level a second time.
+	f.setStatus(t, wp, auditmode.StatusReviewL2, l1User).Want(http.StatusOK)
+}
