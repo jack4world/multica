@@ -176,6 +176,20 @@ func (h *Handler) seedAuditMode(r *http.Request, workspaceID string, wsUUID pgty
 		return pgtype.Timestamptz{}, false, http.StatusInternalServerError, err.Error()
 	}
 	if existing.Valid {
+		// Already an auditee. Still seed the filing scheme: it is idempotent,
+		// and this is the ONLY path that reaches an auditee enabled before the
+		// document library existed. Returning here without it left those
+		// workspaces with no categories and no way to get any, because filing
+		// requires a category and creating one requires its parent.
+		//
+		// `seeded` stays false: nothing about the workspace's audit status
+		// changed, so no client cache needs invalidating.
+		if err := h.seedAuditDocumentCategories(ctx, qtx, wsUUID); err != nil {
+			return pgtype.Timestamptz{}, false, http.StatusInternalServerError, err.Error()
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return pgtype.Timestamptz{}, false, http.StatusInternalServerError, err.Error()
+		}
 		return existing, false, 0, ""
 	}
 
