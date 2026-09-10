@@ -81,6 +81,8 @@ import type {
   ShareLinkInfo,
   Skill,
   SkillImportResult,
+  AuditReport,
+  EngagementArchive,
   RemediationItem,
   Squad,
   TimelineEntry,
@@ -2112,6 +2114,81 @@ export const EMPTY_REMEDIATION_ITEM: RemediationItem = {
   source_project_id: "",
   source_project_title: "",
   created_at: "",
+};
+
+const AuditReportFindingSchema = z.object({
+  title: z.string().default(""),
+  department: z.string().default(""),
+  due_date: z.string().optional(),
+  status: z.string().default(""),
+  issue_id: z.string().default(""),
+}).loose();
+
+export const AuditReportSchema = z.object({
+  id: z.string().default(""),
+  project_id: z.string().default(""),
+  version: z.number().default(1),
+  status: z.string().default("drafting"),
+  title: z.string().default(""),
+  background: z.string().default(""),
+  basis: z.string().default(""),
+  scope: z.string().default(""),
+  opinion: z.string().default(""),
+  requirements: z.string().default(""),
+  findings: z.array(AuditReportFindingSchema).default([]),
+  workpaper_count: z.number().default(0),
+  filed_workpaper_count: z.number().default(0),
+  issued_by: z.string().optional(),
+  issued_at: z.string().optional(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const AuditReportListSchema = z.array(AuditReportSchema);
+
+/**
+ * What a malformed report response falls back to.
+ *
+ * Status "drafting", never "issued": a fallback that claimed a report was
+ * issued would put 已签发 on a document nobody signed, which is the one thing
+ * about a report that must never be guessed.
+ */
+export const EMPTY_AUDIT_REPORT: AuditReport = {
+  id: "",
+  project_id: "",
+  version: 1,
+  status: "drafting",
+  title: "",
+  background: "",
+  basis: "",
+  scope: "",
+  opinion: "",
+  requirements: "",
+  findings: [],
+  workpaper_count: 0,
+  filed_workpaper_count: 0,
+  created_at: "",
+  updated_at: "",
+};
+
+export const EngagementArchiveSchema = z.object({
+  project_id: z.string().default(""),
+  archive_key: z.string().default(""),
+  archived_at: z.string().default(""),
+  workpaper_count: z.number().default(0),
+  trail_count: z.number().default(0),
+  remediation_count: z.number().default(0),
+  attachment_count: z.number().default(0),
+}).loose();
+
+export const EMPTY_ENGAGEMENT_ARCHIVE: EngagementArchive = {
+  project_id: "",
+  archive_key: "",
+  archived_at: "",
+  workpaper_count: 0,
+  trail_count: 0,
+  remediation_count: 0,
+  attachment_count: 0,
 };
 
 export const AuditModeSchema = z.object({

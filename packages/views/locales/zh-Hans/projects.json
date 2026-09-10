@@ -79,7 +79,10 @@
     "no_issues_yet": "目前还没有任务",
     "toast_link_copied": "已复制链接",
     "toast_project_deleted": "已删除项目",
-    "toast_move_issue_failed": "移动任务失败"
+    "toast_move_issue_failed": "移动任务失败",
+    "section_audit_report": "审计报告",
+    "audit_report_link": "打开审计报告",
+    "audit_report_hint": "本审计项目对外出具的文件。"
   },
   "resources": {
     "section_header": "资源",

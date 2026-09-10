@@ -86,3 +86,62 @@ export interface RemediationLedgerFilters {
   status?: string;
   overdue?: boolean;
 }
+
+/** One finding a report cites, as it stood when the report was signed. */
+export interface AuditReportFinding {
+  title: string;
+  department: string;
+  due_date?: string;
+  status: string;
+  issue_id: string;
+}
+
+/**
+ * One 审计报告.
+ *
+ * `findings` are the ledger as it stands while the report is a draft, and the
+ * snapshot taken at signing once it is issued. The client never has to know
+ * which: the server answers with whichever is true for this report's state.
+ */
+export interface AuditReport {
+  id: string;
+  project_id: string;
+  version: number;
+  status: string;
+  title: string;
+  background: string;
+  basis: string;
+  scope: string;
+  opinion: string;
+  requirements: string;
+  findings: AuditReportFinding[];
+  workpaper_count: number;
+  filed_workpaper_count: number;
+  issued_by?: string;
+  issued_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** An edit to an unsigned report. An absent key leaves that section alone. */
+export interface UpdateAuditReportRequest {
+  title?: string;
+  background?: string;
+  basis?: string;
+  scope?: string;
+  opinion?: string;
+  requirements?: string;
+  status?: string;
+  reason?: string;
+}
+
+/** Where an archived engagement's file was written, and what it holds. */
+export interface EngagementArchive {
+  project_id: string;
+  archive_key: string;
+  archived_at: string;
+  workpaper_count: number;
+  trail_count: number;
+  remediation_count: number;
+  attachment_count: number;
+}

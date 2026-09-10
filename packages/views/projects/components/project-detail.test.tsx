@@ -49,6 +49,12 @@ vi.mock("@multica/core/projects/mutations", () => ({
   useDeleteProject: () => ({ mutate: mocks.deleteProject }),
 }));
 
+// The engagement's report link is shown only in an auditee workspace, and this
+// suite is about an ordinary project.
+vi.mock("@multica/core/audit", () => ({
+  useAuditMode: () => ({ data: { enabled: false, enabled_at: null } }),
+}));
+
 vi.mock("@multica/core/pins", () => ({
   pinListOptions: () => ({ queryKey: ["pins"] }),
   useCreatePin: () => ({ mutate: vi.fn() }),

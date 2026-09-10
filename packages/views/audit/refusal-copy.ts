@@ -38,7 +38,13 @@ export const AUDIT_REFUSAL_CODES = [
   "remediation_closed",
   "note_required",
   "not_a_remediation_item",
-  // Both, once the engagement's file is closed.
+  // The 审计报告 and its archive.
+  "rank_required",
+  "report_issued",
+  "report_required",
+  "workpapers_unfinished",
+  "archive_not_configured",
+  // Both chains, once the engagement's file is closed.
   "engagement_archived",
 ] as const;
 

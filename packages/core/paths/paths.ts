@@ -31,6 +31,10 @@ function workspaceScoped(slug: string) {
     issueDetail: (id: string) => `${ws}/issues/${encode(id)}`,
     projects: () => `${ws}/projects`,
     projectDetail: (id: string) => `${ws}/projects/${encode(id)}`,
+    // The engagement's deliverable. A route rather than a panel on the project
+    // page: the report is written in paragraphs and read by people outside the
+    // audit function, so it is edited at the width it is read at.
+    projectReport: (id: string) => `${ws}/projects/${encode(id)}/report`,
     autopilots: () => `${ws}/autopilots`,
     autopilotDetail: (id: string) => `${ws}/autopilots/${encode(id)}`,
     agents: () => `${ws}/agents`,

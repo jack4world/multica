@@ -3,6 +3,7 @@ import { api } from "../api";
 import type {
   AuditAction,
   AuditDepartment,
+  AuditReport,
   AuditMode,
   RemediationItem,
   RemediationLedgerFilters,
@@ -27,6 +28,8 @@ export const auditKeys = {
   // head ends up looking at another department's list.
   ledger: (wsId: string, filters: RemediationLedgerFilters) =>
     ["audit", wsId, "remediation", filters] as const,
+  reports: (wsId: string, projectId: string) => ["audit", wsId, "reports", projectId] as const,
+  report: (wsId: string, reportId: string) => ["audit", wsId, "report", reportId] as const,
 };
 
 export function auditModeOptions(wsId: string) {
@@ -65,5 +68,19 @@ export function remediationLedgerOptions(wsId: string, filters: RemediationLedge
   return queryOptions({
     queryKey: auditKeys.ledger(wsId, filters),
     queryFn: (): Promise<RemediationItem[]> => api.listRemediation(filters),
+  });
+}
+
+export function auditReportsOptions(wsId: string, projectId: string) {
+  return queryOptions({
+    queryKey: auditKeys.reports(wsId, projectId),
+    queryFn: (): Promise<AuditReport[]> => api.listAuditReports(projectId),
+  });
+}
+
+export function auditReportOptions(wsId: string, reportId: string) {
+  return queryOptions({
+    queryKey: auditKeys.report(wsId, reportId),
+    queryFn: (): Promise<AuditReport> => api.getAuditReport(reportId),
   });
 }
