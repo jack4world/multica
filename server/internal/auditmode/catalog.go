@@ -70,7 +70,8 @@ const (
 	StatusReviewL1 = "review_l1"
 	StatusReviewL2 = "review_l2"
 	StatusReviewL3 = "review_l3"
-	// StatusFiled is the terminal state: passed all three levels, immutable.
+	// StatusFiled is the terminal state: passed every level the engagement
+	// runs, immutable.
 	// NOT keyed "archived" — issue_status.archived_at already means "this
 	// status definition was retired", and one table cannot carry two senses of
 	// the word.
@@ -87,7 +88,11 @@ type StatusDef struct {
 	Descriptions map[Locale]string
 }
 
-// Statuses returns the review chain in board order.
+// Statuses returns the review chain in board order. All three review levels
+// are seeded whatever depth an engagement runs: the catalog is the auditee's,
+// depth is the engagement's, and an auditee with a three-level engagement and a
+// two-level one needs the same catalog for both. Which levels a given workpaper
+// can reach is the gate's ruling, not the catalog's (see docs/adr/0003).
 //
 // Every status a workpaper WAITS in is in_review, and that is load-bearing
 // rather than cosmetic.
@@ -165,8 +170,8 @@ func Statuses() []StatusDef {
 				LocaleEn:     "Filed",
 			},
 			Descriptions: map[Locale]string{
-				LocaleZhHans: "通过三级复核并归档。此后不可修改，修正只能出新版本。",
-				LocaleEn:     "Passed all three review levels and filed. Immutable: a correction is a new version, never an edit.",
+				LocaleZhHans: "通过全部复核级次并归档。此后不可修改，修正只能出新版本。",
+				LocaleEn:     "Passed every review level and filed. Immutable: a correction is a new version, never an edit.",
 			},
 		},
 	}
