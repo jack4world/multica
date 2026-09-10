@@ -59,11 +59,17 @@ type Input struct {
 	From string
 	// To is the target status key, or empty when the write leaves status alone.
 	To string
-	// ActorMemberID identifies the acting member; empty for an agent.
-	ActorMemberID string
-	// ResponsibleID is the member who owes the fix — the item's assignee — or
-	// empty when nobody is assigned yet.
-	ResponsibleID string
+	// ActorUserID identifies the acting person; empty for an agent.
+	//
+	// A USER id, not a member id, and the name says so because getting it
+	// wrong is silent: `issue.assignee_id` holds a user id for a member
+	// assignee (see validateAssigneePair), so comparing it against a member id
+	// never matches, and the self-verification rule below would then let the
+	// person who owes the fix close their own item.
+	ActorUserID string
+	// ResponsibleUserID is the person who owes the fix — the item's assignee —
+	// or empty when nobody is assigned yet. Same namespace as ActorUserID.
+	ResponsibleUserID string
 	// ActorIsVerifier reports that the actor holds a reviewer rank on the
 	// engagement that RAISED this item. Any rank qualifies: verifying a fix is
 	// the audit function's act, and which level performs it is not a control.
@@ -156,7 +162,7 @@ func Decide(in Input) Decision {
 		// The same hole as a preparer cancelling their own workpaper: an
 		// inconvenient item would be disposed of by the one party the ledger
 		// exists to hold to a deadline.
-		if in.ResponsibleID != "" && in.ActorMemberID == in.ResponsibleID {
+		if in.ResponsibleUserID != "" && in.ActorUserID == in.ResponsibleUserID {
 			return deny(DenySelfVerification,
 				"you are responsible for this item and cannot cancel it; ask the audit function")
 		}
@@ -228,13 +234,13 @@ func responsibleOrAudit(in Input) bool {
 	if in.ActorIsVerifier || in.ActorIsAdmin {
 		return true
 	}
-	if in.ResponsibleID == "" {
+	if in.ResponsibleUserID == "" {
 		// Nobody is assigned yet, so nobody is the responsible person. Someone
 		// from the audit function has to assign it first — an item that starts
 		// moving with no owner is the item that later has no owner to chase.
 		return false
 	}
-	return in.ActorMemberID == in.ResponsibleID
+	return in.ActorUserID == in.ResponsibleUserID
 }
 
 // decideVerification authorizes a verifier's ruling — closing an item or
@@ -248,7 +254,7 @@ func decideVerification(in Input) Decision {
 		return deny(DenyVerifierRequired,
 			"verifying a remediation item needs a reviewer role on the engagement that raised it, or workspace admin")
 	}
-	if in.ResponsibleID != "" && in.ActorMemberID == in.ResponsibleID {
+	if in.ResponsibleUserID != "" && in.ActorUserID == in.ResponsibleUserID {
 		return deny(DenySelfVerification,
 			"you are responsible for this item and cannot verify your own fix; ask the audit function")
 	}

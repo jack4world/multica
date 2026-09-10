@@ -32,7 +32,7 @@ func TestTheResponsiblePersonIsOfferedSubmission(t *testing.T) {
 func TestAVerifierIsOfferedClosureAndReturn(t *testing.T) {
 	in := base()
 	in.From, in.To = auditmode.StatusPendingVerification, ""
-	in.ActorMemberID, in.ActorIsVerifier = auditor, true
+	in.ActorUserID, in.ActorIsVerifier = auditor, true
 	offered := keys(Available(in))
 	for _, want := range []string{auditmode.StatusRemediationClosed, auditmode.StatusRemediating} {
 		if !contains(offered, want) {
@@ -55,7 +55,7 @@ func TestTheResponsiblePersonIsOfferedNothingAtVerification(t *testing.T) {
 func TestAClosedItemOffersNothingToAnyone(t *testing.T) {
 	in := base()
 	in.From, in.To = auditmode.StatusRemediationClosed, ""
-	in.ActorMemberID, in.ActorIsVerifier, in.ActorIsAdmin = auditor, true, true
+	in.ActorUserID, in.ActorIsVerifier, in.ActorIsAdmin = auditor, true, true
 	if actions := Available(in); len(actions) != 0 {
 		t.Errorf("a closed item offered %v", keys(actions))
 	}
@@ -64,7 +64,7 @@ func TestAClosedItemOffersNothingToAnyone(t *testing.T) {
 func TestAnActionSaysWhetherItNeedsANote(t *testing.T) {
 	in := base()
 	in.From, in.To = auditmode.StatusPendingVerification, ""
-	in.ActorMemberID, in.ActorIsVerifier = auditor, true
+	in.ActorUserID, in.ActorIsVerifier = auditor, true
 	for _, a := range Available(in) {
 		wantNote := a.To != "cancelled"
 		if a.RequiresNote != wantNote {
@@ -91,7 +91,7 @@ func TestEveryOfferedActionWouldBeAccepted(t *testing.T) {
 				for _, admin := range []bool{false, true} {
 					in := base()
 					in.From, in.To = from, ""
-					in.ActorMemberID, in.ActorIsVerifier, in.ActorIsAdmin = actor, verifier, admin
+					in.ActorUserID, in.ActorIsVerifier, in.ActorIsAdmin = actor, verifier, admin
 					for _, a := range Available(in) {
 						check := in
 						check.To = a.To
@@ -119,7 +119,7 @@ func TestEveryAcceptedTransitionIsOffered(t *testing.T) {
 				for _, admin := range []bool{false, true} {
 					in := base()
 					in.From, in.To = from, ""
-					in.ActorMemberID, in.ActorIsVerifier, in.ActorIsAdmin = actor, verifier, admin
+					in.ActorUserID, in.ActorIsVerifier, in.ActorIsAdmin = actor, verifier, admin
 					offered := map[string]bool{}
 					for _, a := range Available(in) {
 						offered[a.To] = true
@@ -145,7 +145,7 @@ func TestAnAgentIsOfferedNothing(t *testing.T) {
 	for _, from := range statusMatrix() {
 		in := base()
 		in.From, in.To = from, ""
-		in.ActorIsAgent, in.ActorMemberID, in.ActorIsVerifier = true, "", true
+		in.ActorIsAgent, in.ActorUserID, in.ActorIsVerifier = true, "", true
 		if actions := Available(in); len(actions) != 0 {
 			t.Errorf("an agent at %s was offered %v", from, keys(actions))
 		}

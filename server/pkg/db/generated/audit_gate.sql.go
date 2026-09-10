@@ -607,6 +607,43 @@ func (q *Queries) ListAuditeeWorkspaceIDs(ctx context.Context) ([]pgtype.UUID, e
 	return items, nil
 }
 
+const listEngagementReviewerUserIDs = `-- name: ListEngagementReviewerUserIDs :many
+SELECT m.user_id
+FROM audit_role ar
+JOIN member m ON m.id = ar.member_id
+WHERE ar.project_id = $1 AND ar.level = $2::text
+`
+
+type ListEngagementReviewerUserIDsParams struct {
+	ProjectID pgtype.UUID `json:"project_id"`
+	Level     string      `json:"level"`
+}
+
+// The USER ids of the people holding one rank on an engagement.
+//
+// User ids, not member ids, because the callers address a person: an inbox
+// item's recipient_id is a user id (see ListInbox), and writing a member id
+// there produces a notification nobody can ever read.
+func (q *Queries) ListEngagementReviewerUserIDs(ctx context.Context, arg ListEngagementReviewerUserIDsParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listEngagementReviewerUserIDs, arg.ProjectID, arg.Level)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var user_id pgtype.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReviewQueueForMember = `-- name: ListReviewQueueForMember :many
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, r.level::text AS reviewer_level, w.preparer_id
 FROM audit_role r

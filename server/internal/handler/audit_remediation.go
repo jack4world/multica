@@ -307,10 +307,19 @@ func (h *Handler) RaiseRemediationItem(w http.ResponseWriter, r *http.Request) {
 		if !parsed {
 			return
 		}
-		assigneeMember, memberErr := h.Queries.GetMember(r.Context(), assigneeUUID)
-		if memberErr != nil || assigneeMember.WorkspaceID != wsUUID {
-			// A responsible person from another workspace is a deadline nobody
-			// in this auditee owns.
+		// A USER id, like every other assignee write on the platform
+		// (validateAssigneePair). Storing a member id here would put a value in
+		// issue.assignee_id that nothing else can resolve: the assignee renders
+		// as "Unknown" everywhere, and — far worse — the ledger's
+		// self-verification rule compares the assignee against the actor and
+		// would never match, letting the person who owes the fix close their
+		// own item.
+		if _, memberErr := h.Queries.GetMemberByUserAndWorkspace(r.Context(), db.GetMemberByUserAndWorkspaceParams{
+			UserID:      assigneeUUID,
+			WorkspaceID: wsUUID,
+		}); memberErr != nil {
+			// A responsible person from another auditee is a deadline nobody
+			// here owns.
 			writeError(w, http.StatusBadRequest, "that member is not part of this auditee")
 			return
 		}

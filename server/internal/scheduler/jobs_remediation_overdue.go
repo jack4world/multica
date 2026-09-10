@@ -130,21 +130,26 @@ func remediationRecipients(ctx context.Context, queries *db.Queries, row db.List
 		seen[key] = true
 		out = append(out, id)
 	}
+	// Both recipients are USER ids, and they have to be: an inbox item's
+	// recipient_id is a user id (ListInbox reads it that way), so a member id
+	// here is a notification nobody can ever read. issue.assignee_id already
+	// holds a user id for a member assignee; the reviewer's has to be resolved.
 	if row.AssigneeType.String == "member" {
 		add(row.AssigneeID)
 	}
-	roles, err := queries.ListAuditRolesForProject(ctx, row.SourceProjectID)
+	// The first level only. Every reviewer on the engagement hearing about
+	// every late item is how an inbox becomes noise.
+	reviewers, err := queries.ListEngagementReviewerUserIDs(ctx, db.ListEngagementReviewerUserIDsParams{
+		ProjectID: row.SourceProjectID,
+		Level:     "reviewer_l1",
+	})
 	if err != nil {
-		slog.Warn("remediation overdue: role read failed",
+		slog.Warn("remediation overdue: reviewer read failed",
 			"project_id", util.UUIDToString(row.SourceProjectID), "error", err)
 		return out
 	}
-	for _, role := range roles {
-		// The first level only. Every reviewer on the engagement hearing about
-		// every late item is how an inbox becomes noise.
-		if role.Level == "reviewer_l1" {
-			add(role.MemberID)
-		}
+	for _, userID := range reviewers {
+		add(userID)
 	}
 	return out
 }
