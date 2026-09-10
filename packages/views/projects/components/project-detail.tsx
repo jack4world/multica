@@ -26,6 +26,8 @@ import { currentPath, useNavigation } from "../../navigation";
 import { TitleEditor, ContentEditor, type ContentEditorRef } from "../../editor";
 import { PriorityIcon } from "../../issues/components/priority-icon";
 import { ProjectResourcesSection } from "./project-resources-section";
+import { useAuditMode } from "@multica/core/audit";
+import { AppLink } from "../../navigation/app-link";
 import { ProjectStartDatePicker } from "./project-start-date-picker";
 import { ProjectDueDatePicker } from "./project-due-date-picker";
 import { IssueSurface } from "../../issues/surface/issue-surface";
@@ -108,6 +110,8 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
   const router = useNavigation();
   const userId = useAuthStore((s) => s.user?.id);
   const { data: project, isLoading } = useQuery(projectDetailOptions(wsId, projectId));
+  const { data: auditMode } = useAuditMode(wsId);
+  const auditModeEnabled = auditMode?.enabled === true;
   const recordRecentContext = useRecentContextStore((s) => s.recordVisit);
   useEffect(() => {
     if (project) {
@@ -470,6 +474,25 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       {/* Resources */}
       <ProjectResourcesSection projectId={projectId} />
+
+      {/* The engagement's deliverable. Shown only in an auditee workspace, and
+          a link rather than a panel: the report is written in paragraphs. */}
+      {auditModeEnabled && (
+        <div className="flex flex-col gap-1">
+          <span className="px-2 text-caption font-medium text-muted-foreground">
+            {t(($) => $.detail.section_audit_report)}
+          </span>
+          <AppLink
+            href={wsPaths.projectReport(projectId)}
+            className="px-2 text-body hover:underline"
+          >
+            {t(($) => $.detail.audit_report_link)}
+          </AppLink>
+          <span className="px-2 text-caption text-muted-foreground">
+            {t(($) => $.detail.audit_report_hint)}
+          </span>
+        </div>
+      )}
     </div>
   );
 

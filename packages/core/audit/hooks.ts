@@ -1,11 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { issueKeys } from "../issues/queries";
-import type { RaiseRemediationRequest, RemediationLedgerFilters } from "../types";
+import { projectKeys } from "../projects/queries";
+import type {
+  RaiseRemediationRequest,
+  RemediationLedgerFilters,
+  UpdateAuditReportRequest,
+} from "../types";
 import {
   auditActionsOptions,
   auditDepartmentsOptions,
   auditKeys,
+  auditReportOptions,
+  auditReportsOptions,
   auditModeOptions,
   remediationLedgerOptions,
   reviewQueueOptions,
@@ -128,6 +135,72 @@ export function useReassignRemediation(wsId: string) {
       api.updateRemediationDepartment(input.issueId, input.departmentId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: auditKeys.all(wsId) });
+    },
+  });
+}
+
+/** An engagement's reports, newest version first. */
+export function useAuditReports(wsId: string, projectId: string, enabled = true) {
+  return useQuery({
+    ...auditReportsOptions(wsId, projectId),
+    enabled: Boolean(wsId) && Boolean(projectId) && enabled,
+  });
+}
+
+/** One report. */
+export function useAuditReport(wsId: string, reportId: string, enabled = true) {
+  return useQuery({
+    ...auditReportOptions(wsId, reportId),
+    enabled: Boolean(wsId) && Boolean(reportId) && enabled,
+  });
+}
+
+/** Start the engagement's next report. */
+export function useCreateAuditReport(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { projectId: string; title?: string }) =>
+      api.createAuditReport(input.projectId, input.title),
+    onSuccess: (_report, input) => {
+      void queryClient.invalidateQueries({ queryKey: auditKeys.reports(wsId, input.projectId) });
+    },
+  });
+}
+
+/**
+ * Write an unsigned report, or move it through its chain.
+ *
+ * Not optimistic, and the reason is sharper here than elsewhere: the write that
+ * matters is 签发, and showing a report as issued before the server has agreed
+ * would show the one state a reader acts on — sending it out — for a document
+ * that may have been refused.
+ */
+export function useUpdateAuditReport(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { reportId: string; data: UpdateAuditReportRequest }) =>
+      api.updateAuditReport(input.reportId, input.data),
+    onSuccess: (report, input) => {
+      void queryClient.invalidateQueries({ queryKey: auditKeys.report(wsId, input.reportId) });
+      void queryClient.invalidateQueries({ queryKey: auditKeys.reports(wsId, report.project_id) });
+    },
+  });
+}
+
+/**
+ * Close the engagement's file.
+ *
+ * Invalidates the whole audit namespace and the project: archiving changes what
+ * the engagement will accept from then on, and a stale "open" elsewhere in the
+ * interface would offer work the server now refuses.
+ */
+export function useArchiveEngagement(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (projectId: string) => api.archiveEngagement(projectId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: auditKeys.all(wsId) });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all(wsId) });
     },
   });
 }

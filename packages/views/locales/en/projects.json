@@ -80,7 +80,10 @@
     "no_issues_yet": "No issues yet",
     "toast_link_copied": "Link copied",
     "toast_project_deleted": "Project deleted",
-    "toast_move_issue_failed": "Failed to move issue"
+    "toast_move_issue_failed": "Failed to move issue",
+    "section_audit_report": "Audit report",
+    "audit_report_link": "Open the audit report",
+    "audit_report_hint": "What this engagement sends out."
   },
   "resources": {
     "section_header": "Resources",

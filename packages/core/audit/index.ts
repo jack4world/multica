@@ -5,6 +5,8 @@ export {
   auditActionsOptions,
   auditDepartmentsOptions,
   remediationLedgerOptions,
+  auditReportsOptions,
+  auditReportOptions,
 } from "./queries";
 export {
   useAuditMode,
@@ -17,4 +19,9 @@ export {
   useDeleteAuditDepartment,
   useRaiseRemediation,
   useReassignRemediation,
+  useAuditReports,
+  useAuditReport,
+  useCreateAuditReport,
+  useUpdateAuditReport,
+  useArchiveEngagement,
 } from "./hooks";

@@ -339,4 +339,8 @@ export type {
   RemediationItem,
   RaiseRemediationRequest,
   RemediationLedgerFilters,
+  AuditReport,
+  AuditReportFinding,
+  UpdateAuditReportRequest,
+  EngagementArchive,
 } from "./audit";

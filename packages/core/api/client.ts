@@ -120,6 +120,9 @@ import type {
   AuditAction,
   AuditMode,
   AuditDepartment,
+  AuditReport,
+  UpdateAuditReportRequest,
+  EngagementArchive,
   RemediationItem,
   RaiseRemediationRequest,
   RemediationLedgerFilters,
@@ -392,6 +395,11 @@ import {
   AuditModeSchema,
   AuditDepartmentSchema,
   AuditDepartmentListSchema,
+  AuditReportSchema,
+  AuditReportListSchema,
+  EngagementArchiveSchema,
+  EMPTY_AUDIT_REPORT,
+  EMPTY_ENGAGEMENT_ARCHIVE,
   RemediationItemSchema,
   RemediationListSchema,
   ListIssueStatusesResponseSchema,
@@ -800,6 +808,18 @@ export class ApiClient {
       return undefined as T;
     }
     return res.json() as Promise<T>;
+  }
+
+  /**
+   * A response that is a document rather than a payload.
+   *
+   * The rendered audit report is Markdown or HTML: parsing it would be
+   * inventing a structure the server deliberately did not send, and the point
+   * of the endpoint is to hand over exactly the text that goes out.
+   */
+  private async fetchText(path: string, init?: RequestInit): Promise<string> {
+    const res = await this.fetchRaw(path, init);
+    return res.text();
   }
 
   // Auth
@@ -3756,6 +3776,57 @@ export class ApiClient {
     });
     return parseWithFallback(raw, RemediationItemSchema, EMPTY_REMEDIATION_ITEM, {
       endpoint: "PUT /api/issues/{id}/remediation",
+    });
+  }
+
+  // The engagement's deliverable. Starting one and signing it are gated on the
+  // server by a rank on the engagement, and signing needs the top rank of the
+  // depth it runs; the client renders the refusal rather than predicting it.
+  async listAuditReports(projectId: string): Promise<AuditReport[]> {
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/reports`);
+    return parseWithFallback(raw, AuditReportListSchema, [], {
+      endpoint: "GET /api/projects/{id}/reports",
+    });
+  }
+
+  async createAuditReport(projectId: string, title?: string): Promise<AuditReport> {
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/reports`, {
+      method: "POST",
+      body: JSON.stringify({ title: title ?? "" }),
+    });
+    return parseWithFallback(raw, AuditReportSchema, EMPTY_AUDIT_REPORT, {
+      endpoint: "POST /api/projects/{id}/reports",
+    });
+  }
+
+  async getAuditReport(reportId: string): Promise<AuditReport> {
+    const raw = await this.fetch<unknown>(`/api/audit/reports/${reportId}`);
+    return parseWithFallback(raw, AuditReportSchema, EMPTY_AUDIT_REPORT, {
+      endpoint: "GET /api/audit/reports/{id}",
+    });
+  }
+
+  async updateAuditReport(reportId: string, data: UpdateAuditReportRequest): Promise<AuditReport> {
+    const raw = await this.fetch<unknown>(`/api/audit/reports/${reportId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, AuditReportSchema, EMPTY_AUDIT_REPORT, {
+      endpoint: "PUT /api/audit/reports/{id}",
+    });
+  }
+
+  /** The rendered report. Markdown or HTML — text, not JSON. */
+  async exportAuditReport(reportId: string, format: "markdown" | "html" = "markdown"): Promise<string> {
+    return this.fetchText(`/api/audit/reports/${reportId}/export?format=${format}`);
+  }
+
+  async archiveEngagement(projectId: string): Promise<EngagementArchive> {
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/archive`, {
+      method: "POST",
+    });
+    return parseWithFallback(raw, EngagementArchiveSchema, EMPTY_ENGAGEMENT_ARCHIVE, {
+      endpoint: "POST /api/projects/{id}/archive",
     });
   }
 
