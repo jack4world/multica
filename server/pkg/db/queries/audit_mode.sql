@@ -79,3 +79,32 @@ WHERE workspace_id = $1
 SELECT name FROM issue_property
 WHERE workspace_id = $1
   AND LOWER(name) = ANY(sqlc.arg('names')::text[]);
+
+-- name: SeedAuditIssueStatusEntryIfAbsent :exec
+-- Convergent seeding: adds one catalog status only if the workspace does not
+-- already have that key.
+--
+-- This is what reaches an auditee that was enabled BEFORE a chain existed. The
+-- enable path returns early once a workspace is an auditee, so a status added
+-- to the catalog later has no other way in — and a chain whose statuses are
+-- missing is a feature that silently does not exist for every workspace that
+-- adopted the vertical early. Position follows MAX+1 within the category, like
+-- every other insert into this table.
+INSERT INTO issue_status (workspace_id, key, name, description, category, color, position)
+SELECT sqlc.arg('workspace_id')::uuid,
+       sqlc.arg('key')::text,
+       sqlc.arg('name')::text,
+       sqlc.arg('description')::text,
+       sqlc.arg('category')::text,
+       sqlc.arg('color')::text,
+       COALESCE(
+           (SELECT MAX(position) + 1 FROM issue_status
+            WHERE workspace_id = sqlc.arg('workspace_id')::uuid
+              AND category = sqlc.arg('category')::text),
+           0
+       )
+WHERE NOT EXISTS (
+    SELECT 1 FROM issue_status
+    WHERE workspace_id = sqlc.arg('workspace_id')::uuid
+      AND key = sqlc.arg('key')::text
+);

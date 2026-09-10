@@ -1986,6 +1986,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Delete("/api/audit/documents/{id}", h.DeleteAuditDocument)
 			r.Get("/api/issues/{id}/audit-actions", h.ListAuditActions)
 
+			// The 整改台账. Reads are auditee membership, like the library.
+			// Maintaining the department list is owner/admin; raising and
+			// reassigning items needs a rank on the engagement that raised
+			// them, gated inside the handlers.
+			r.Get("/api/audit/departments", h.ListAuditDepartments)
+			r.Post("/api/audit/departments", h.CreateAuditDepartment)
+			r.Delete("/api/audit/departments/{id}", h.DeleteAuditDepartment)
+			r.Get("/api/audit/remediation", h.ListRemediationLedger)
+			r.Put("/api/issues/{id}/remediation", h.UpdateRemediationDepartment)
+
 			r.Route("/api/audit-mode", func(r chi.Router) {
 				r.Get("/", h.GetAuditMode)
 				r.Post("/", h.EnableAuditMode)
@@ -2011,6 +2021,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/audit-roles", h.ListAuditRoles)
 					r.Put("/audit-roles", h.SetAuditRole)
 					r.Delete("/audit-roles/{memberId}", h.DeleteAuditRole)
+					// Raised FROM an engagement, created outside it: an item
+					// that belongs to no engagement is what makes it outlive
+					// the audit that found it.
+					r.Post("/remediation", h.RaiseRemediationItem)
 				})
 			})
 

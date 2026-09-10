@@ -136,8 +136,11 @@ func TestEnableAuditModeIsIdempotent(t *testing.T) {
 	if first.EnabledAt == nil || second.EnabledAt == nil || *first.EnabledAt != *second.EnabledAt {
 		t.Errorf("enabled_at moved on re-enable: %v then %v; when a workspace became an auditee is a fact, not a counter", first.EnabledAt, second.EnabledAt)
 	}
-	if n := dbfx.Count(t, `SELECT COUNT(*) FROM issue_status WHERE workspace_id = $1 AND is_system = FALSE`, wsID); n != len(auditmode.Statuses()) {
-		t.Errorf("issue_status rows = %d, want %d", n, len(auditmode.Statuses()))
+	// Both chains, seeded once. The second enable converges rather than
+	// inserting: an auditee that predates a chain gets what it is missing, and
+	// one that has everything gets nothing.
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM issue_status WHERE workspace_id = $1 AND is_system = FALSE`, wsID); n != len(auditmode.SeedStatuses()) {
+		t.Errorf("issue_status rows = %d, want %d", n, len(auditmode.SeedStatuses()))
 	}
 	if n := dbfx.Count(t, `SELECT COUNT(*) FROM issue_property WHERE workspace_id = $1`, wsID); n != len(auditmode.Properties()) {
 		t.Errorf("issue_property rows = %d, want %d", n, len(auditmode.Properties()))

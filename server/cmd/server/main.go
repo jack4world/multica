@@ -780,6 +780,12 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.AuditTrailExportJob(queries, storage.NewAuditExportStorageFromEnv())); err != nil {
 		slog.Warn("scheduler: failed to register audit_trail_export job", "error", err)
 	}
+	// A missed 整改 deadline that nobody is told about is the failure 后续审计
+	// exists to find. Told ONCE: a daily reminder is one people learn to
+	// ignore. Inert on a deployment with no remediation items.
+	if err := schedulerMgr.Register(scheduler.RemediationOverdueJob(queries)); err != nil {
+		slog.Warn("scheduler: failed to register remediation_overdue_reminder job", "error", err)
+	}
 	go func() {
 		_ = schedulerMgr.Run(sweepCtx)
 	}()

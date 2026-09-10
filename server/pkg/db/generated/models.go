@@ -199,6 +199,15 @@ type Attachment struct {
 	SourceContextID pgtype.UUID        `json:"source_context_id"`
 }
 
+type AuditDepartment struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Name        string             `json:"name"`
+	Position    float64            `json:"position"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AuditDocument struct {
 	ID           pgtype.UUID        `json:"id"`
 	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
@@ -220,6 +229,20 @@ type AuditDocumentCategory struct {
 	Position    float64            `json:"position"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AuditRemediation struct {
+	IssueID           pgtype.UUID        `json:"issue_id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	SourceProjectID   pgtype.UUID        `json:"source_project_id"`
+	SourceIssueID     pgtype.UUID        `json:"source_issue_id"`
+	DepartmentID      pgtype.UUID        `json:"department_id"`
+	VerifiedBy        pgtype.UUID        `json:"verified_by"`
+	VerifiedAt        pgtype.Timestamptz `json:"verified_at"`
+	VerificationNote  pgtype.Text        `json:"verification_note"`
+	OverdueRemindedAt pgtype.Timestamptz `json:"overdue_reminded_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 type AuditRole struct {

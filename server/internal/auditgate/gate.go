@@ -143,6 +143,11 @@ type Input struct {
 	// Reason is the free text accompanying the write. Required on a rejection
 	// and ignored otherwise.
 	Reason string
+	// IsRemediationItem reports that this issue is on the 整改台账. It is
+	// consulted only when the write moves the issue between projects: a
+	// remediation item belongs to no engagement by definition, and dragging one
+	// into an engagement would silently turn a tracked item into a workpaper.
+	IsRemediationItem bool
 	// RefusedActor marks a caller with no standing in the auditee at all. The
 	// collector sets it rather than deciding, so one place assembles the facts
 	// and one place applies the rules.
@@ -268,6 +273,15 @@ func Decide(in Input) Decision {
 	// the project while in review — a content edit, allowed — then set the
 	// status on an issue the gate no longer recognises as a workpaper.
 	if in.ProjectChanged {
+		if in.IsRemediationItem && in.TargetInEngagement {
+			// The glossary's claim that a remediation item outlives the audit
+			// that found it is true because the item belongs to no engagement
+			// and points at the one that raised it. Moving it into an
+			// engagement would make it a workpaper of that engagement and lose
+			// the pointer's meaning.
+			return deny(DenyIllegalTransition,
+				"a remediation item belongs to no engagement; it already records the one that raised it")
+		}
 		if in.InEngagement && isAudit(in.From) {
 			return deny(DenyLeavesChain,
 				"a workpaper in the review chain cannot be moved out of its engagement; take it out of the chain first")

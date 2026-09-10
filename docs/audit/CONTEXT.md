@@ -71,8 +71,28 @@ A problem confirmed to be real. Not a stored entity: a finding is the remediatio
 _Avoid_: 疑点, 风险
 
 **整改事项 (Remediation Item)**:
-Something the auditee is required to fix, with an owner and a deadline. Is a platform issue that belongs to no engagement — it outlives the audit that found it.
+Something the auditee is required to fix, with a 责任部门, a 整改责任人 and a 整改期限. Is a platform issue that belongs to no engagement — it outlives the audit that found it — and records the engagement that raised it. Reaches 已关闭 only through a 验证.
 _Avoid_: 问题, 发现
+
+**整改台账 (Remediation Ledger)**:
+Every remediation item an auditee owes, with its department, deadline and state. Not a separate store: it is the view over the items, which is why an item can be filtered, assigned and commented on like any other work.
+_Avoid_: 整改清单, 问题清单, backlog
+
+**责任部门 (Responsible Department)**:
+The department that owes a fix. Chosen from the auditee's own list, never typed free-hand — counting items by department is the reason the field exists, and two spellings of one department make every count wrong. Distinct from 整改责任人: the person can leave, the department still owes it.
+_Avoid_: 部门, 责任人, owner
+
+**整改期限 (Remediation Deadline)**:
+When the fix is due. Is the platform issue's due date. An item past it and not closed is 逾期, which is read from the date and never stored — a stored flag is only as true as the last time a job ran.
+_Avoid_: 截止日期, deadline (as a separate field)
+
+**验证 (Verification)**:
+The audit function checking that a fix actually happened, and recording what was checked. Performed by someone holding a 复核人 rank on the engagement that raised the item, never by the person responsible for the fix. Closure is a verification; there is no other way to reach 已关闭.
+_Avoid_: 确认, 复核 (which is about workpapers), 关闭
+
+**后续审计 (Follow-Up Audit)**:
+Checking later whether remediation actually held. Reads the ledger of a past engagement; it is why an item points at the engagement that raised it rather than belonging to one.
+_Avoid_: 回访, 复查
 
 **风险 (Risk)**:
 Keeps its audit meaning only: the planning-stage assessment of where material misstatement is likely, used to decide what to examine and how deeply. Never a word for an observation or a finding.

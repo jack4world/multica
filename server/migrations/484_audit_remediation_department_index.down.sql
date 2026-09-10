@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_audit_remediation_workspace_department;
