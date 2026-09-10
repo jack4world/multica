@@ -1014,6 +1014,30 @@
       "refusal_archive_not_configured": "没有配置归档存放位置，管理员需要先设置 AUDIT_EXPORT_DIR。",
       "refusal_rank_required": "这一步需要本审计项目的最高一级复核人。",
       "refusal_report_issued": "报告已签发，不能再改。需要更正请出新版本。"
+    },
+    "library": {
+      "title": "审计资料",
+      "subtitle": "本单位的原始材料，按归档号分类。同一家单位的资料跨年度共用。",
+      "loading": "加载中...",
+      "empty_drawer": "本类目下还没有资料。",
+      "select_drawer": "先选一个类目。",
+      "standard": "标准类目",
+      "file_here": "归入本类目",
+      "file_title": "资料名称（不填就用文件名）",
+      "filing": "上传中...",
+      "file_failed": "归档没能完成。",
+      "delete": "删除",
+      "delete_failed": "删除没能完成。",
+      "col_title": "资料",
+      "col_size": "大小",
+      "col_filed": "归入时间",
+      "new_category": "新增子类目",
+      "new_category_path": "归档号（两位数字，如 08）",
+      "new_category_name": "类目名称",
+      "new_category_add": "新增",
+      "new_category_failed": "新增类目没能完成。",
+      "delete_category": "删除类目",
+      "delete_category_failed": "类目下还有资料或子类目，先清空再删。"
     }
   }
 }

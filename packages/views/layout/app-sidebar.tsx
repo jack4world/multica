@@ -116,6 +116,7 @@ type NavKey =
   | "inbox"
   | "reviewQueue"
   | "remediation"
+  | "auditDocuments"
   | "chat"
   | "myIssues"
   | "issues"
@@ -134,6 +135,7 @@ type NavLabelKey =
   | "inbox"
   | "review_queue"
   | "remediation"
+  | "audit_documents"
   | "chat"
   | "my_issues"
   | "issues"
@@ -162,6 +164,7 @@ const personalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
 const auditNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "reviewQueue", labelKey: "review_queue" },
   { key: "remediation", labelKey: "remediation" },
+  { key: "auditDocuments", labelKey: "audit_documents" },
 ];
 
 const workNav: { key: NavKey; labelKey: NavLabelKey }[] = [

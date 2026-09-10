@@ -1014,6 +1014,30 @@
       "refusal_archive_not_configured": "No archive destination is configured. An administrator must set AUDIT_EXPORT_DIR.",
       "refusal_rank_required": "This step needs the top reviewer rank on this engagement.",
       "refusal_report_issued": "The report is issued and cannot be changed. Issue a new version instead."
+    },
+    "library": {
+      "title": "Documents",
+      "subtitle": "The auditee's own material, filed by classification. It spans every audit of this client.",
+      "loading": "Loading...",
+      "empty_drawer": "Nothing filed here yet.",
+      "select_drawer": "Pick a drawer.",
+      "standard": "Standard",
+      "file_here": "File here",
+      "file_title": "Title (defaults to the file name)",
+      "filing": "Uploading...",
+      "file_failed": "Filing did not complete.",
+      "delete": "Remove",
+      "delete_failed": "Removing did not complete.",
+      "col_title": "Document",
+      "col_size": "Size",
+      "col_filed": "Filed",
+      "new_category": "Add a sub-drawer",
+      "new_category_path": "Number (two digits, e.g. 08)",
+      "new_category_name": "Name",
+      "new_category_add": "Add",
+      "new_category_failed": "The drawer could not be added.",
+      "delete_category": "Remove drawer",
+      "delete_category_failed": "The drawer still holds material or sub-drawers. Empty it first."
     }
   }
 }

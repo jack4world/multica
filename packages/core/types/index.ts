@@ -343,4 +343,6 @@ export type {
   AuditReportFinding,
   UpdateAuditReportRequest,
   EngagementArchive,
+  AuditCategory,
+  AuditDocument,
 } from "./audit";

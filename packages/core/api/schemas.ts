@@ -81,6 +81,7 @@ import type {
   ShareLinkInfo,
   Skill,
   SkillImportResult,
+  AuditDocument,
   AuditReport,
   EngagementArchive,
   RemediationItem,
@@ -2189,6 +2190,46 @@ export const EMPTY_ENGAGEMENT_ARCHIVE: EngagementArchive = {
   trail_count: 0,
   remediation_count: 0,
   attachment_count: 0,
+};
+
+export const AuditCategorySchema = z.object({
+  path: z.string().default(""),
+  name: z.string().default(""),
+  is_standard: z.boolean().default(false),
+  depth: z.number().default(1),
+  parent: z.string().optional(),
+}).loose();
+
+export const AuditCategoryListSchema = z.array(AuditCategorySchema);
+
+export const AuditDocumentSchema = z.object({
+  id: z.string().default(""),
+  category_path: z.string().default(""),
+  title: z.string().default(""),
+  attachment_id: z.string().default(""),
+  filename: z.string().default(""),
+  url: z.string().default(""),
+  content_type: z.string().default(""),
+  size_bytes: z.number().default(0),
+  uploader_type: z.string().default(""),
+  uploader_id: z.string().default(""),
+  created_at: z.string().default(""),
+}).loose();
+
+export const AuditDocumentListSchema = z.array(AuditDocumentSchema);
+
+export const EMPTY_AUDIT_DOCUMENT: AuditDocument = {
+  id: "",
+  category_path: "",
+  title: "",
+  attachment_id: "",
+  filename: "",
+  url: "",
+  content_type: "",
+  size_bytes: 0,
+  uploader_type: "",
+  uploader_id: "",
+  created_at: "",
 };
 
 export const AuditModeSchema = z.object({
