@@ -291,3 +291,14 @@ SET audit_archived_at = now(),
     updated_at = now()
 WHERE id = sqlc.arg('id')::uuid AND workspace_id = sqlc.arg('workspace_id')::uuid
 RETURNING *;
+
+-- name: ListEngagementReviewerUserIDs :many
+-- The USER ids of the people holding one rank on an engagement.
+--
+-- User ids, not member ids, because the callers address a person: an inbox
+-- item's recipient_id is a user id (see ListInbox), and writing a member id
+-- there produces a notification nobody can ever read.
+SELECT m.user_id
+FROM audit_role ar
+JOIN member m ON m.id = ar.member_id
+WHERE ar.project_id = $1 AND ar.level = sqlc.arg('level')::text;

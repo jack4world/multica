@@ -20,8 +20,12 @@ type overdueFixture struct {
 	workspaceID string
 	projectID   string
 	issueID     string
-	assignee    string
-	leadAuditor string
+	// USER ids, deliberately. An inbox item's recipient_id is a user id — that
+	// is what ListInbox queries with — so a notice addressed by member id is
+	// one nobody can ever read. Both recipients are checked in that namespace
+	// here for exactly that reason.
+	assigneeUser    string
+	leadAuditorUser string
 }
 
 // newOverdueItem builds an auditee with one remediation item, due `daysAgo`
@@ -53,8 +57,9 @@ func newOverdueItem(t *testing.T, daysAgo int, status string) overdueFixture {
 			t.Fatalf("%s: %v", query, err)
 		}
 	}
-	newMember := func() string {
-		var userID, memberID string
+	// Returns both ids: the member id is what a rank is seated with, the user
+	// id is what a person is notified at.
+	newMember := func() (userID, memberID string) {
 		if err := testPool.QueryRow(ctx,
 			`INSERT INTO "user" (email, name) VALUES ($1, 'Overdue Tester') RETURNING id::text`,
 			"overdue-"+uuid.NewString()[:8]+"@multica.ai").Scan(&userID); err != nil {
@@ -65,10 +70,12 @@ func newOverdueItem(t *testing.T, daysAgo int, status string) overdueFixture {
 			f.workspaceID, userID).Scan(&memberID); err != nil {
 			t.Fatalf("create member: %v", err)
 		}
-		return memberID
+		return userID, memberID
 	}
-	f.assignee = newMember()
-	f.leadAuditor = newMember()
+	assigneeUser, _ := newMember()
+	leadUser, leadMember := newMember()
+	f.assigneeUser = assigneeUser
+	f.leadAuditorUser = leadUser
 
 	if err := testPool.QueryRow(ctx,
 		`INSERT INTO project (workspace_id, title) VALUES ($1, 'Engagement') RETURNING id::text`,
@@ -76,7 +83,7 @@ func newOverdueItem(t *testing.T, daysAgo int, status string) overdueFixture {
 		t.Fatalf("create engagement: %v", err)
 	}
 	mustExec(`INSERT INTO audit_role (workspace_id, project_id, member_id, level)
-	          VALUES ($1, $2, $3, 'reviewer_l1')`, f.workspaceID, f.projectID, f.leadAuditor)
+	          VALUES ($1, $2, $3, 'reviewer_l1')`, f.workspaceID, f.projectID, leadMember)
 
 	var departmentID string
 	if err := testPool.QueryRow(ctx,
@@ -92,7 +99,7 @@ func newOverdueItem(t *testing.T, daysAgo int, status string) overdueFixture {
 		 VALUES ($1, $2, 1, '整改事项', $3, 'medium',
 		         'member', $4, 'member', $4, 0, CURRENT_DATE - $5::int)
 		 RETURNING id::text`,
-		issueID, f.workspaceID, status, f.assignee, daysAgo).Scan(&f.issueID); err != nil {
+		issueID, f.workspaceID, status, f.assigneeUser, daysAgo).Scan(&f.issueID); err != nil {
 		t.Fatalf("create item: %v", err)
 	}
 	mustExec(`INSERT INTO audit_remediation (issue_id, workspace_id, source_project_id, department_id)
@@ -137,10 +144,14 @@ func TestALateItemTellsTheResponsiblePersonAndTheLeadAuditor(t *testing.T) {
 	if n := overdueNotices(t, f.issueID); n != 2 {
 		t.Fatalf("notices = %d, want 2 (the responsible person and the lead auditor)", n)
 	}
-	for _, recipient := range []string{f.assignee, f.leadAuditor} {
+	for _, recipient := range []string{f.assigneeUser, f.leadAuditorUser} {
 		var n int
+		// recipient_type + recipient_id exactly as ListInbox reads them: this is
+		// what makes the assertion "the person can see it" rather than "a row
+		// exists".
 		if err := testPool.QueryRow(context.Background(),
-			`SELECT COUNT(*) FROM inbox_item WHERE issue_id = $1 AND recipient_id = $2`,
+			`SELECT COUNT(*) FROM inbox_item
+			 WHERE issue_id = $1 AND recipient_type = 'member' AND recipient_id = $2`,
 			f.issueID, recipient).Scan(&n); err != nil {
 			t.Fatalf("count for recipient: %v", err)
 		}

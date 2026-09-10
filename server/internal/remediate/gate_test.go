@@ -11,19 +11,23 @@ import (
 // for lives in internal/handler; what is here is the matrix an auditor would
 // argue about.
 
+// USER ids, because that is the namespace issue.assignee_id is written in and
+// the namespace the gate compares. Named so a reader cannot mistake them for
+// member ids — the two crossing is what let the person who owes a fix close
+// their own item.
 const (
-	responsible = "member-responsible"
-	auditor     = "member-auditor"
+	responsible = "user-responsible"
+	auditor     = "user-auditor"
 )
 
 // base is an item on the ledger, in progress, being acted on by its own
 // responsible person.
 func base() Input {
 	return Input{
-		IsRemediation: true,
-		From:          auditmode.StatusRemediating,
-		ActorMemberID: responsible,
-		ResponsibleID: responsible,
+		IsRemediation:     true,
+		From:              auditmode.StatusRemediating,
+		ActorUserID:       responsible,
+		ResponsibleUserID: responsible,
 	}
 }
 
@@ -68,7 +72,7 @@ func TestTheResponsiblePersonCannotCancelTheirOwnItem(t *testing.T) {
 func TestClosingNeedsAVerifierFromTheRaisingEngagement(t *testing.T) {
 	in := base()
 	in.From, in.To = auditmode.StatusPendingVerification, auditmode.StatusRemediationClosed
-	in.ActorMemberID, in.Note = "someone-else", "看过了"
+	in.ActorUserID, in.Note = "someone-else", "看过了"
 	d := Decide(in)
 	if d.Allowed {
 		t.Fatal("a member with no rank on the raising engagement closed an item")
@@ -81,7 +85,7 @@ func TestClosingNeedsAVerifierFromTheRaisingEngagement(t *testing.T) {
 func TestClosingNeedsAnAccountOfWhatWasChecked(t *testing.T) {
 	in := base()
 	in.From, in.To = auditmode.StatusPendingVerification, auditmode.StatusRemediationClosed
-	in.ActorMemberID, in.ActorIsVerifier = auditor, true
+	in.ActorUserID, in.ActorIsVerifier = auditor, true
 	for _, note := range []string{"", "   ", "\n\t"} {
 		in.Note = note
 		d := Decide(in)
@@ -97,7 +101,7 @@ func TestClosingNeedsAnAccountOfWhatWasChecked(t *testing.T) {
 func TestSendingAFixBackNeedsAReason(t *testing.T) {
 	in := base()
 	in.From, in.To = auditmode.StatusPendingVerification, auditmode.StatusRemediating
-	in.ActorMemberID, in.ActorIsVerifier = auditor, true
+	in.ActorUserID, in.ActorIsVerifier = auditor, true
 	if d := Decide(in); d.Code != DenyNoteRequired {
 		t.Errorf("a rejection with no reason was refused as %q, want %q", d.Code, DenyNoteRequired)
 	}
@@ -121,7 +125,7 @@ func TestAnItemCannotLeaveTheLedgerForAnOrdinaryDoneStatus(t *testing.T) {
 	for _, from := range []string{auditmode.StatusRemediating, auditmode.StatusPendingVerification} {
 		in := base()
 		in.From, in.To = from, "done"
-		in.ActorIsVerifier, in.ActorIsAdmin, in.ActorMemberID = true, true, auditor
+		in.ActorIsVerifier, in.ActorIsAdmin, in.ActorUserID = true, true, auditor
 		d := Decide(in)
 		if d.Allowed {
 			t.Errorf("%s -> done was allowed; the item left the ledger unverified", from)
@@ -136,7 +140,7 @@ func TestAClosedItemRefusesEveryWrite(t *testing.T) {
 	for _, to := range []string{auditmode.StatusRemediating, auditmode.StatusPendingVerification, "cancelled", "todo", ""} {
 		in := base()
 		in.From, in.To = auditmode.StatusRemediationClosed, to
-		in.ActorMemberID, in.ActorIsVerifier, in.ActorIsAdmin = auditor, true, true
+		in.ActorUserID, in.ActorIsVerifier, in.ActorIsAdmin = auditor, true, true
 		in.Note = "改主意了"
 		d := Decide(in)
 		if d.Allowed {
@@ -151,7 +155,7 @@ func TestAClosedItemRefusesEveryWrite(t *testing.T) {
 func TestClosureIsReachedOnlyThroughVerification(t *testing.T) {
 	in := base()
 	in.From, in.To = auditmode.StatusRemediating, auditmode.StatusRemediationClosed
-	in.ActorMemberID, in.ActorIsVerifier, in.Note = auditor, true, "看过了"
+	in.ActorUserID, in.ActorIsVerifier, in.Note = auditor, true, "看过了"
 	d := Decide(in)
 	if d.Allowed {
 		t.Fatal("an item was closed without ever being submitted for verification")
@@ -188,7 +192,7 @@ func TestAnAgentMakesNoRemediationDecision(t *testing.T) {
 	for _, c := range cases {
 		in := base()
 		in.From, in.To = c.from, c.to
-		in.ActorIsAgent, in.ActorMemberID, in.ActorIsVerifier = true, "", true
+		in.ActorIsAgent, in.ActorUserID, in.ActorIsVerifier = true, "", true
 		in.Note = "整改完成"
 		d := Decide(in)
 		if d.Allowed {
@@ -241,7 +245,7 @@ func TestEveryRefusalCarriesASentence(t *testing.T) {
 	for _, to := range []string{auditmode.StatusRemediationClosed, "done", "cancelled", auditmode.StatusPendingVerification} {
 		probe := in
 		probe.From, probe.To = auditmode.StatusPendingVerification, to
-		probe.ActorMemberID = responsible
+		probe.ActorUserID = responsible
 		d := Decide(probe)
 		if d.Allowed {
 			continue

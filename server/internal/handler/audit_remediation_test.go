@@ -38,17 +38,27 @@ func (f auditFixture) raise(t *testing.T, body map[string]any) *testutil.Respons
 
 // item raises a well-formed remediation item owned by the shared test user and
 // returns its issue id.
+//
+// The assignee is a USER id, which is what the platform stores for a member
+// assignee everywhere else. This fixture passed a MEMBER id until a walkthrough
+// caught the assignee rendering as "Unknown": both sides of the
+// self-verification comparison were then in the same wrong namespace, so the
+// rule appeared to hold here while failing open for every item assigned through
+// the ordinary picker.
 func (f auditFixture) item(t *testing.T, deptID string) string {
 	t.Helper()
-	var memberID string
-	dbfx.QueryRow(t, `SELECT id::text FROM member WHERE workspace_id = $1 AND user_id = $2`,
-		f.workspaceID, testUserID).Scan(&memberID)
+	return f.itemFor(t, deptID, testUserID)
+}
+
+// itemFor raises an item owned by a particular user.
+func (f auditFixture) itemFor(t *testing.T, deptID, userID string) string {
+	t.Helper()
 	var out RemediationResponse
 	f.raise(t, map[string]any{
 		"title":         "整改事项 " + uuid.NewString()[:8],
 		"department_id": deptID,
 		"due_date":      time.Now().AddDate(0, 0, 14).Format("2006-01-02"),
-		"assignee_id":   memberID,
+		"assignee_id":   userID,
 	}).Want(http.StatusCreated).JSON(&out)
 	return out.IssueID
 }
@@ -165,18 +175,15 @@ func TestTheResponsiblePersonCannotCloseTheirOwnItemThroughTheAPI(t *testing.T) 
 	dept := f.department(t, "财务部")
 	// The responsible person is also a reviewer on the engagement — the case
 	// where a rank would otherwise be enough.
-	var memberID string
-	dbfx.QueryRow(t, `SELECT id::text FROM member WHERE workspace_id = $1 AND user_id = $2`,
-		f.workspaceID, f.reviewerUsers[auditgate.LevelL2]).Scan(&memberID)
+	responsible := f.reviewerUsers[auditgate.LevelL2]
 	var out RemediationResponse
 	f.raise(t, map[string]any{
 		"title":         "自查自纠",
 		"department_id": dept,
 		"due_date":      time.Now().AddDate(0, 0, 7).Format("2006-01-02"),
-		"assignee_id":   memberID,
+		"assignee_id":   responsible,
 	}).Want(http.StatusCreated).JSON(&out)
 
-	responsible := f.reviewerUsers[auditgate.LevelL2]
 	f.move(t, out.IssueID, auditmode.StatusRemediating, "", responsible).Want(http.StatusOK)
 	f.move(t, out.IssueID, auditmode.StatusPendingVerification, "已整改", responsible).Want(http.StatusOK)
 	f.move(t, out.IssueID, auditmode.StatusRemediationClosed, "自己看过了", responsible).
@@ -450,4 +457,76 @@ func TestTheTrailRecordsEveryLedgerStep(t *testing.T) {
 			t.Errorf("entry %d = %q, want %q", i, got[i].Action, want[i])
 		}
 	}
+}
+
+// THE regression. The rule that the person who owes a fix cannot close it is
+// the one the whole ledger rests on, and it failed open in the shipped code for
+// every item assigned through the ordinary picker: issue.assignee_id holds a
+// USER id for a member assignee, the gate compared it against the actor's
+// MEMBER id, and two namespaces never match.
+//
+// It passed every test because the fixture wrote a member id too — both sides
+// wrong in the same direction. This test assigns the item the way the platform
+// assigns one, and asks the endpoint the INTERFACE asks, because a button that
+// is offered is a button someone presses.
+func TestTheResponsiblePersonIsOfferedNothingOnTheirOwnItem(t *testing.T) {
+	f := newAuditFixture(t)
+	dept := f.department(t, "财务部")
+	// Assigned to someone who also holds a reviewer rank on the raising
+	// engagement — the case where standing would otherwise be enough.
+	responsible := f.reviewerUsers[auditgate.LevelL3]
+	issueID := f.itemFor(t, dept, responsible)
+
+	f.move(t, issueID, auditmode.StatusRemediating, "", responsible).Want(http.StatusOK)
+	f.move(t, issueID, auditmode.StatusPendingVerification, "已整改", responsible).Want(http.StatusOK)
+
+	req := auditRequest(http.MethodGet, "/api/issues/"+issueID+"/audit-actions", f.workspaceID, nil)
+	req.Header.Set("X-User-ID", responsible)
+	var actions []AuditActionResponse
+	testutil.Call(t, testHandler.ListAuditActions, withURLParam(req, "id", issueID)).
+		Want(http.StatusOK).JSON(&actions)
+
+	for _, a := range actions {
+		if a.To == auditmode.StatusRemediationClosed {
+			t.Fatalf("the person responsible for the fix was offered %q on their own item", a.Event)
+		}
+	}
+
+	// And refused if they send it anyway — the interface is not the control.
+	f.move(t, issueID, auditmode.StatusRemediationClosed, "自己看过了", responsible).
+		Want(http.StatusForbidden)
+}
+
+// The other half of the same namespace bug: an assignee the rest of the
+// platform cannot resolve renders as "Unknown" on every surface that names one.
+func TestARaisedItemStoresTheAssigneeTheWayThePlatformDoes(t *testing.T) {
+	f := newAuditFixture(t)
+	dept := f.department(t, "财务部")
+	issueID := f.itemFor(t, dept, testUserID)
+
+	var assigneeType, assigneeID string
+	dbfx.QueryRow(t, `SELECT assignee_type, assignee_id::text FROM issue WHERE id = $1`, issueID).
+		Scan(&assigneeType, &assigneeID)
+	if assigneeType != "member" {
+		t.Fatalf("assignee_type = %q, want member", assigneeType)
+	}
+	if assigneeID != testUserID {
+		t.Errorf("assignee_id = %q, want the USER id %q; a member id here resolves to nobody",
+			assigneeID, testUserID)
+	}
+}
+
+// A user who is not a member of this auditee cannot be made responsible for its
+// remediation: a deadline nobody here owns is a deadline nobody chases.
+func TestAResponsiblePersonMustBeAMemberOfTheAuditee(t *testing.T) {
+	f := newAuditFixture(t)
+	dept := f.department(t, "财务部")
+	outsider := dbfx.User(t, "Outsider", "out-"+uuid.NewString()[:8]+"@multica.ai")
+
+	f.raise(t, map[string]any{
+		"title":         "跨单位责任人",
+		"department_id": dept,
+		"due_date":      time.Now().AddDate(0, 0, 7).Format("2006-01-02"),
+		"assignee_id":   outsider,
+	}).Want(http.StatusBadRequest)
 }

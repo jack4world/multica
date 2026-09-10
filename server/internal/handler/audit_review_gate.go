@@ -437,8 +437,14 @@ func (h *Handler) remediationGateInput(ctx context.Context, q *db.Queries, g *re
 		Note:         g.reason,
 		ActorIsAgent: g.actorType == "agent",
 	}
+	// issue.assignee_id holds the USER id for a member assignee — that is the
+	// platform's contract (validateAssigneePair looks it up with
+	// GetMemberByUserAndWorkspace), and it is what the actor below is compared
+	// against. Reading it as a member id would make the self-verification rule
+	// compare two different namespaces, which never matches: the person who
+	// owes the fix would be allowed to close their own item.
 	if g.prev.AssigneeType.String == "member" && g.prev.AssigneeID.Valid {
-		in.ResponsibleID = util.UUIDToString(g.prev.AssigneeID)
+		in.ResponsibleUserID = util.UUIDToString(g.prev.AssigneeID)
 	}
 
 	record, recordErr := q.GetAuditRemediation(ctx, g.prev.ID)
@@ -472,7 +478,8 @@ func (h *Handler) remediationGateInput(ctx context.Context, q *db.Queries, g *re
 		return in, pgtype.UUID{}, memberErr
 	}
 	actingMemberID = member.ID
-	in.ActorMemberID = util.UUIDToString(member.ID)
+	// The USER id, matching the namespace issue.assignee_id is written in.
+	in.ActorUserID = util.UUIDToString(member.UserID)
 	in.ActorIsAdmin = member.Role == "owner" || member.Role == "admin"
 
 	// The rank is read from the engagement that RAISED the item, not from
