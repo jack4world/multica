@@ -26,6 +26,7 @@ export const AUDIT_REFUSAL_CODES = [
   // The review chain.
   "level_required",
   "self_review",
+  "same_reviewer",
   "filed",
   "agent_not_permitted",
   "illegal_transition",

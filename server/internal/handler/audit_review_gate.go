@@ -150,7 +150,10 @@ type gateDecision struct {
 func fromReviewDecision(d auditgate.Decision) gateDecision {
 	status := http.StatusConflict
 	switch d.Code {
-	case auditgate.DenyLevelRequired, auditgate.DenySelfReview, auditgate.DenyAgent:
+	case auditgate.DenyLevelRequired, auditgate.DenySelfReview, auditgate.DenyAgent,
+		auditgate.DenySameReviewer:
+		// Same family as self-review: a refusal about WHO is acting. Another
+		// person at this rank can take the step, so it is not a 409.
 		status = http.StatusForbidden
 	case auditgate.DenyReasonRequired:
 		// A missing field is a bad request, not a conflict or a permission
@@ -618,6 +621,9 @@ func (h *Handler) auditGateInput(ctx context.Context, q *db.Queries, g *reviewGa
 		}
 		actingMemberID = member.ID
 		in.ActorMemberID = util.UUIDToString(member.ID)
+		// The USER id as well: the trail records actors in that namespace, so
+		// the prior-signature check below compares like with like.
+		in.ActorUserID = util.UUIDToString(member.UserID)
 		in.ActorIsAdmin = member.Role == "owner" || member.Role == "admin"
 
 		// Ranks are scoped to the same engagement whose depth was read above.
@@ -641,6 +647,27 @@ func (h *Handler) auditGateInput(ctx context.Context, q *db.Queries, g *reviewGa
 			in.IsRemediationItem = true
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return in, pgtype.UUID{}, err
+		}
+	}
+
+	// Who already signed this workpaper. Read only when a review status is on
+	// the FROM side, which is the only case where a second signature by the
+	// same person is possible; an ordinary edit or a submission pays nothing.
+	if _, isReview := auditgate.ReviewOrdinal(g.prev.Status); isReview {
+		rows, sigErr := q.ListWorkpaperSignatures(ctx, g.prev.ID)
+		if sigErr != nil {
+			return in, pgtype.UUID{}, sigErr
+		}
+		for _, row := range rows {
+			level, _ := row.Level.(string)
+			if !row.ActorID.Valid || level == "" {
+				continue
+			}
+			if in.PriorSignedLevels == nil {
+				in.PriorSignedLevels = make(map[string][]auditgate.Level, len(rows))
+			}
+			actor := util.UUIDToString(row.ActorID)
+			in.PriorSignedLevels[actor] = append(in.PriorSignedLevels[actor], auditgate.Level(level))
 		}
 	}
 

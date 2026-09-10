@@ -105,6 +105,7 @@ const (
 	DenyLeavesChain       DenyCode = "leaves_chain"
 	DenyReasonRequired    DenyCode = "reason_required"
 	DenyArchived          DenyCode = "engagement_archived"
+	DenySameReviewer      DenyCode = "same_reviewer"
 )
 
 // Input is everything the decision depends on. All values, all supplied by the
@@ -144,6 +145,20 @@ type Input struct {
 	// Reason is the free text accompanying the write. Required on a rejection
 	// and ignored otherwise.
 	Reason string
+	// ActorUserID is the acting person's USER id — the namespace the audit
+	// trail records actors in, and therefore the one PriorSignedLevels is
+	// keyed by. Distinct from ActorMemberID above, which is the namespace
+	// audit_workpaper.preparer_id uses; the two must not be crossed.
+	ActorUserID string
+	// PriorSignedLevels maps a user id to the review levels that person has
+	// already passed on THIS workpaper, read from the trail.
+	//
+	// Two levels of review mean two people looked. Holding a rank now says
+	// nothing about who signed the level below, and a reviewer's rank
+	// legitimately changes mid-flight — a promotion, a transfer, someone
+	// covering an absence. Without this, one person could pass a workpaper at
+	// L1, be re-seated at L2, and sign it again.
+	PriorSignedLevels map[string][]Level
 	// EngagementArchived reports that the engagement's file has been closed.
 	// An archived engagement takes no more work: the archive is a statement
 	// about what the file contained at the moment it was written.
@@ -203,6 +218,12 @@ func ReviewStatusForLevel(level Level) string {
 	}
 	return ""
 }
+
+// ReviewOrdinal reports which review stage a status is, 1-based, and whether it
+// is one at all. Exported so a caller can tell whether a write is leaving a
+// review stage — the only case where a second signature by the same person is
+// possible — without re-listing the chain.
+func ReviewOrdinal(status string) (int, bool) { return ordinalOf(status) }
 
 // ordinalOf reports which review stage a status is, 1-based, and whether it is
 // one at all.
@@ -432,6 +453,23 @@ func decideChainStep(in Input, required Level) Decision {
 	if in.PreparerID != "" && in.ActorMemberID == in.PreparerID {
 		return deny(DenySelfReview,
 			"you prepared this workpaper and cannot review it; hand it to another %s", required)
+	}
+	// Two levels of review mean two PEOPLE looked, and holding the rank now
+	// says nothing about who signed the level below. A reviewer's rank changes
+	// mid-flight for ordinary reasons — a promotion, a transfer, someone
+	// covering an absence — so this reads the trail rather than the seating
+	// chart.
+	//
+	// Signing the SAME level again is fine: that is what a rejection loop is,
+	// the same person doing the same job a second time.
+	if prior, ok := in.PriorSignedLevels[in.ActorUserID]; ok && in.ActorUserID != "" {
+		for _, level := range prior {
+			if level != required {
+				return deny(DenySameReviewer,
+					"you already signed this workpaper as %s; two levels of review mean two people, so %s has to be someone else",
+					level, required)
+			}
+		}
 	}
 	if in.To == auditmode.StatusDrafting {
 		// A rejection needs a reason. Telling a preparer their work does not

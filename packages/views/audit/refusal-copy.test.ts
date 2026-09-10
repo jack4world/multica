@@ -51,6 +51,7 @@ describe("refusal code", () => {
       "remediation_closed",
       "report_issued",
       "report_required",
+      "same_reviewer",
       "self_review",
       "self_verification",
       "verifier_required",

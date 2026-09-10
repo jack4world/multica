@@ -61,6 +61,7 @@ export function ReviewActions({ wsId, issueId }: { wsId: string; issueId: string
     switch (refusalCode(err)) {
       case "level_required": return t(($) => $.audit.refusal.level_required);
       case "self_review": return t(($) => $.audit.refusal.self_review);
+      case "same_reviewer": return t(($) => $.audit.refusal.same_reviewer);
       case "filed": return t(($) => $.audit.refusal.filed);
       case "agent_not_permitted": return t(($) => $.audit.refusal.agent_not_permitted);
       case "illegal_transition": return t(($) => $.audit.refusal.illegal_transition);

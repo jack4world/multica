@@ -822,6 +822,46 @@ func (q *Queries) ListTrailForProject(ctx context.Context, arg ListTrailForProje
 	return items, nil
 }
 
+const listWorkpaperSignatures = `-- name: ListWorkpaperSignatures :many
+SELECT actor_id, details->>'level' AS level
+FROM activity_log
+WHERE issue_id = $1
+  AND action IN ('workpaper_review_passed', 'workpaper_filed')
+  AND actor_id IS NOT NULL
+  AND details->>'level' IS NOT NULL
+`
+
+type ListWorkpaperSignaturesRow struct {
+	ActorID pgtype.UUID `json:"actor_id"`
+	Level   interface{} `json:"level"`
+}
+
+// Who has already signed this workpaper, and at which level.
+//
+// Read from the TRAIL, not from the seating chart: a reviewer's rank changes
+// mid-flight for ordinary reasons, and "two levels of review" is a claim about
+// two people having looked, not about two ranks having existed. actor_id is a
+// user id here, like every other row in this table.
+func (q *Queries) ListWorkpaperSignatures(ctx context.Context, issueID pgtype.UUID) ([]ListWorkpaperSignaturesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkpaperSignatures, issueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkpaperSignaturesRow{}
+	for rows.Next() {
+		var i ListWorkpaperSignaturesRow
+		if err := rows.Scan(&i.ActorID, &i.Level); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkpapersForArchive = `-- name: ListWorkpapersForArchive :many
 SELECT i.id, i.number, i.title, i.status, i.properties, i.updated_at,
        w.preparer_id, w.submitted_at
