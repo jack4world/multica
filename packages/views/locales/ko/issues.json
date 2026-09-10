@@ -1015,7 +1015,8 @@
       "refusal_workpapers_unfinished": "Workpapers are still in the review chain. Finish them first.",
       "refusal_archive_not_configured": "No archive destination is configured. An administrator must set AUDIT_EXPORT_DIR.",
       "refusal_rank_required": "This step needs the top reviewer rank on this engagement.",
-      "refusal_report_issued": "The report is issued and cannot be changed. Issue a new version instead."
+      "refusal_report_issued": "The report is issued and cannot be changed. Issue a new version instead.",
+      "refusal_report_under_review": "This report is with its signatory. Ask for it back before changing it, so nobody signs text they have not read."
     },
     "library": {
       "title": "Documents",

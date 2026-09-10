@@ -318,6 +318,26 @@ func (h *Handler) FileAuditDocument(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to file the document")
 		return
 	}
+	// Filing is recorded for the same reason withdrawal is: the trail is what
+	// says the file grew, and a document that appears with no entry is one
+	// nobody can date.
+	if details, err := json.Marshal(map[string]any{
+		"document_id":   uuidToString(row.ID),
+		"attachment_id": uuidToString(row.AttachmentID),
+		"category_path": row.CategoryPath,
+		"title":         row.Title,
+	}); err == nil {
+		if _, err := h.Queries.CreateActivity(r.Context(), db.CreateActivityParams{
+			ID:          dbid.NewV7(),
+			WorkspaceID: wsUUID,
+			ActorType:   pgtype.Text{String: row.UploaderType, Valid: row.UploaderType != ""},
+			ActorID:     row.UploaderID,
+			Action:      "audit_document_filed",
+			Details:     details,
+		}); err != nil {
+			slog.Warn("filing trail failed", append(logger.RequestAttrs(r), "error", err)...)
+		}
+	}
 	writeJSON(w, http.StatusCreated, AuditDocumentResponse{
 		ID: uuidToString(row.ID), CategoryPath: row.CategoryPath, Title: row.Title,
 		AttachmentID: uuidToString(row.AttachmentID),

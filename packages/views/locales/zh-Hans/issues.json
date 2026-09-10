@@ -1015,7 +1015,8 @@
       "refusal_workpapers_unfinished": "还有工作底稿在复核链里，先走完再归档。",
       "refusal_archive_not_configured": "没有配置归档存放位置，管理员需要先设置 AUDIT_EXPORT_DIR。",
       "refusal_rank_required": "这一步需要本审计项目的最高一级复核人。",
-      "refusal_report_issued": "报告已签发，不能再改。需要更正请出新版本。"
+      "refusal_report_issued": "报告已签发，不能再改。需要更正请出新版本。",
+      "refusal_report_under_review": "报告已提交签发，正在签发人手里。要修改请先请他退回——免得他签的不是他读过的那一份。"
     },
     "library": {
       "title": "审计资料",

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -249,19 +250,66 @@ func TestTheTrailRecordsTheReportGoingOut(t *testing.T) {
 	f.writeReport(t, reportID, map[string]any{"status": auditreport.StatusIssued},
 		f.reviewerUsers[auditgate.LevelL2]).Want(http.StatusOK)
 
-	// The two steps that happened, in order, and nothing else: a report is not
-	// an issue, so these entries carry the report rather than an issue_id.
-	var first, second string
+	// Everything that happened, in order, and nothing else: a report is not an
+	// issue, so these entries carry the report rather than an issue_id.
+	//
+	// report_updated is in the list on purpose. The trail used to record only
+	// transitions, so a report whose every section had been rewritten between
+	// submission and signature read as "submitted, issued" — the change was not
+	// hidden, it was never written down at all.
+	var first, second, third string
 	dbfx.QueryRow(t, `SELECT
 	    (array_agg(action ORDER BY created_at ASC))[1],
-	    (array_agg(action ORDER BY created_at ASC))[2]
-	  FROM activity_log WHERE workspace_id = $1`, f.workspaceID).Scan(&first, &second)
-	if first != "report_submitted" || second != "report_issued" {
-		t.Errorf("trail = [%q %q], want [report_submitted report_issued]", first, second)
+	    (array_agg(action ORDER BY created_at ASC))[2],
+	    (array_agg(action ORDER BY created_at ASC))[3]
+	  FROM activity_log WHERE workspace_id = $1`, f.workspaceID).Scan(&first, &second, &third)
+	want := []string{"report_updated", "report_submitted", "report_issued"}
+	if got := []string{first, second, third}; !reflect.DeepEqual(got, want) {
+		t.Errorf("trail = %v, want %v", got, want)
 	}
-	if n := dbfx.Count(t, `SELECT COUNT(*) FROM activity_log WHERE workspace_id = $1`, f.workspaceID); n != 2 {
-		t.Errorf("trail has %d entries, want 2", n)
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM activity_log WHERE workspace_id = $1`, f.workspaceID); n != 3 {
+		t.Errorf("trail has %d entries, want 3", n)
 	}
+
+	// And the entry says WHICH sections moved, so a reader can tell a typo from
+	// a rewritten opinion without diffing two versions.
+	var sections string
+	dbfx.QueryRow(t, `SELECT details->>'sections' FROM activity_log
+	    WHERE workspace_id = $1 AND action = 'report_updated'`, f.workspaceID).Scan(&sections)
+	if !strings.Contains(sections, "opinion") {
+		t.Errorf("report_updated recorded sections %q, want the ones that changed", sections)
+	}
+}
+
+// A report under sign-off is out of the drafter's hands. Editing it there means
+// the signatory may not be signing what they read: they open it, go and think
+// about it, and the text moves underneath them with no status change.
+func TestASubmittedReportCannotBeEditedUnderTheSignatory(t *testing.T) {
+	f := newAuditFixture(t)
+	reportID := f.draftReport(t)
+	f.writeReport(t, reportID, map[string]any{"status": auditreport.StatusReviewing},
+		f.reviewerUsers[auditgate.LevelL1]).Want(http.StatusOK)
+
+	body := f.writeReport(t, reportID, map[string]any{"opinion": "签发前偷改"},
+		f.reviewerUsers[auditgate.LevelL1]).Want(http.StatusConflict).Map()
+	if code, _ := body["code"].(string); code != "report_under_review" {
+		t.Errorf("refused as %q, want report_under_review", code)
+	}
+
+	var opinion string
+	dbfx.QueryRow(t, `SELECT opinion FROM audit_report WHERE id = $1`, reportID).Scan(&opinion)
+	if opinion == "签发前偷改" {
+		t.Error("the text moved while the report was with its signatory")
+	}
+
+	// The way to change it is to have it returned, which needs a reason and is
+	// recorded — so the signatory knows the version they read is void.
+	f.writeReport(t, reportID, map[string]any{
+		"status": auditreport.StatusDrafting,
+		"reason": "审计意见需要重写",
+	}, f.reviewerUsers[auditgate.LevelL2]).Want(http.StatusOK)
+	f.writeReport(t, reportID, map[string]any{"opinion": "重写后的意见"},
+		f.reviewerUsers[auditgate.LevelL1]).Want(http.StatusOK)
 }
 
 func TestAnAgentCannotIssueAReport(t *testing.T) {
