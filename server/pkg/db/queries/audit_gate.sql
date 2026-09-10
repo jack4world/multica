@@ -133,36 +133,7 @@ WHERE r.workspace_id = $1
 ORDER BY i.updated_at ASC, i.id ASC
 LIMIT $3;
 
--- name: ListStaleHandovers :many
--- Delivered drafts that have waited too long and have not been reminded about.
---
--- LEFT JOIN because a workpaper handed over by an agent may never have been
--- submitted by a person, so it can have no audit_workpaper row at all — and
--- those are exactly the ones most likely to be forgotten.
-SELECT i.id, i.workspace_id, i.title, i.assignee_type, i.assignee_id,
-       i.creator_type, i.creator_id, i.updated_at
-FROM issue i
-LEFT JOIN audit_workpaper w ON w.issue_id = i.id
-WHERE i.workspace_id = ANY(sqlc.arg('workspace_ids')::uuid[])
-  AND i.status = sqlc.arg('status')::text
-  AND i.updated_at < sqlc.arg('older_than')::timestamptz
-  AND (w.handover_reminded_at IS NULL)
-ORDER BY i.updated_at ASC
-LIMIT sqlc.arg('lim');
 
--- name: MarkHandoverReminded :exec
--- Recorded so the reminder is sent once. Upserts because a workpaper an agent
--- handed over may have no row yet: it was never SUBMITTED by a person, so it
--- has no preparer, which is why that column is nullable.
-INSERT INTO audit_workpaper (issue_id, workspace_id, handover_reminded_at)
-VALUES (
-    sqlc.arg('issue_id')::uuid,
-    sqlc.arg('workspace_id')::uuid,
-    now()
-)
-ON CONFLICT (issue_id) DO UPDATE
-SET handover_reminded_at = now(),
-    updated_at = now();
 
 -- name: SeedAuditDocumentCategory :exec
 -- Idempotent, so the same seeding serves audit-mode enable and an explicit

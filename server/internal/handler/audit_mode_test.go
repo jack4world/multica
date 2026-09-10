@@ -90,13 +90,12 @@ func TestEnableAuditModeSeedsTheReviewChainAndAuditFields(t *testing.T) {
 
 	// Within in_review, the four waiting states must sort in review order —
 	// a board that lists 三级复核 before 一级复核 misrepresents the workflow.
-	var l1, l2, l3, delivered float64
-	dbfx.QueryRow(t, `SELECT position FROM issue_status WHERE workspace_id = $1 AND key = $2`, wsID, auditmode.StatusAgentDelivered).Scan(&delivered)
+	var l1, l2, l3 float64
 	dbfx.QueryRow(t, `SELECT position FROM issue_status WHERE workspace_id = $1 AND key = $2`, wsID, auditmode.StatusReviewL1).Scan(&l1)
 	dbfx.QueryRow(t, `SELECT position FROM issue_status WHERE workspace_id = $1 AND key = $2`, wsID, auditmode.StatusReviewL2).Scan(&l2)
 	dbfx.QueryRow(t, `SELECT position FROM issue_status WHERE workspace_id = $1 AND key = $2`, wsID, auditmode.StatusReviewL3).Scan(&l3)
-	if !(delivered < l1 && l1 < l2 && l2 < l3) {
-		t.Errorf("in_review positions = delivered %v, l1 %v, l2 %v, l3 %v; want strictly increasing", delivered, l1, l2, l3)
+	if !(l1 < l2 && l2 < l3) {
+		t.Errorf("in_review positions = l1 %v, l2 %v, l3 %v; want strictly increasing", l1, l2, l3)
 	}
 
 	for _, want := range auditmode.Properties() {
@@ -294,11 +293,11 @@ func TestSeededStatusesAppendAfterExistingCustomStatuses(t *testing.T) {
 
 	enableAuditMode(t, wsID, nil).Want(http.StatusOK)
 
-	var existing, delivered float64
+	var existing, firstReview float64
 	dbfx.QueryRow(t, `SELECT position FROM issue_status WHERE workspace_id = $1 AND key = 'triage'`, wsID).Scan(&existing)
-	dbfx.QueryRow(t, `SELECT position FROM issue_status WHERE workspace_id = $1 AND key = $2`, wsID, auditmode.StatusAgentDelivered).Scan(&delivered)
-	if delivered <= existing {
-		t.Errorf("agent_delivered position = %v, existing in_review status = %v; the chain must append after it", delivered, existing)
+	dbfx.QueryRow(t, `SELECT position FROM issue_status WHERE workspace_id = $1 AND key = $2`, wsID, auditmode.StatusReviewL1).Scan(&firstReview)
+	if firstReview <= existing {
+		t.Errorf("review_l1 position = %v, existing in_review status = %v; the chain must append after it", firstReview, existing)
 	}
 }
 

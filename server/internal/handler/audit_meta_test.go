@@ -6,9 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/multica-ai/multica/server/internal/auditgate"
 	"github.com/multica-ai/multica/server/internal/auditmeta"
-	"github.com/multica-ai/multica/server/internal/auditmode"
 	"github.com/multica-ai/multica/server/internal/testutil"
 )
 
@@ -46,11 +44,10 @@ func TestTheAuditeesIdentityIsOwnerAdminOnlyAndNeverAnAgent(t *testing.T) {
 	}
 }
 
-func TestAnOwnerRecordsTheAuditedEntityAndItsLabel(t *testing.T) {
+func TestAnOwnerRecordsTheAuditedEntity(t *testing.T) {
 	f := newAuditFixture(t)
 	req := auditRequest(http.MethodPut, "/api/workspaces/"+f.workspaceID, f.workspaceID, map[string]any{
-		"client_name":     "某某集团有限公司",
-		"confidentiality": auditmeta.ConfidentialityRestricted,
+		"client_name": "某某集团有限公司",
 	})
 	var out WorkspaceResponse
 	testutil.Call(t, testHandler.UpdateWorkspace, withURLParam(req, "id", f.workspaceID)).
@@ -59,34 +56,6 @@ func TestAnOwnerRecordsTheAuditedEntityAndItsLabel(t *testing.T) {
 	if out.ClientName == nil || *out.ClientName != "某某集团有限公司" {
 		t.Errorf("client_name = %v", out.ClientName)
 	}
-	if out.Confidentiality == nil || *out.Confidentiality != auditmeta.ConfidentialityRestricted {
-		t.Errorf("confidentiality = %v", out.Confidentiality)
-	}
-}
-
-// THE test about something not happening. Nothing else in the system would
-// notice if the label quietly acquired teeth, and a second isolation model
-// that disagreed with membership is exactly what ADR-0001 exists to prevent.
-func TestTheConfidentialityLabelChangesNothingAnyoneCanSee(t *testing.T) {
-	f := newAuditFixture(t)
-	wp := f.workpaper(t, auditmode.StatusDrafting)
-
-	before := len(f.queueFor(t, f.reviewerUsers[auditgate.LevelL1]))
-	visibleBefore := dbfx.Count(t, `SELECT COUNT(*) FROM issue WHERE workspace_id = $1`, f.workspaceID)
-
-	req := auditRequest(http.MethodPut, "/api/workspaces/"+f.workspaceID, f.workspaceID,
-		map[string]any{"confidentiality": auditmeta.ConfidentialitySecret})
-	testutil.Call(t, testHandler.UpdateWorkspace, withURLParam(req, "id", f.workspaceID)).Want(http.StatusOK)
-
-	if got := dbfx.Count(t, `SELECT COUNT(*) FROM issue WHERE workspace_id = $1`, f.workspaceID); got != visibleBefore {
-		t.Errorf("issue count changed from %d to %d after labelling the auditee secret", visibleBefore, got)
-	}
-	if got := len(f.queueFor(t, f.reviewerUsers[auditgate.LevelL1])); got != before {
-		t.Errorf("review queue changed from %d to %d after labelling the auditee secret", before, got)
-	}
-	// And the workpaper is still readable by an ordinary member.
-	req2 := auditRequest(http.MethodGet, "/api/issues/"+wp, f.workspaceID, nil)
-	testutil.Call(t, testHandler.GetIssue, withURLParam(req2, "id", wp)).Want(http.StatusOK)
 }
 
 func TestAnImpossibleAuditPeriodIsRefused(t *testing.T) {

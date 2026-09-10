@@ -102,7 +102,6 @@ func TestAnActionSaysWhetherItNeedsAReason(t *testing.T) {
 func TestEveryOfferedActionWouldBeAccepted(t *testing.T) {
 	statuses := []string{
 		auditmode.StatusDrafting,
-		auditmode.StatusAgentDelivered,
 		auditmode.StatusReviewL1,
 		auditmode.StatusReviewL2,
 		auditmode.StatusReviewL3,
@@ -140,7 +139,6 @@ func TestEveryOfferedActionWouldBeAccepted(t *testing.T) {
 func TestEveryAcceptedTransitionIsOffered(t *testing.T) {
 	statuses := []string{
 		auditmode.StatusDrafting,
-		auditmode.StatusAgentDelivered,
 		auditmode.StatusReviewL1,
 		auditmode.StatusReviewL2,
 		auditmode.StatusReviewL3,
@@ -167,13 +165,15 @@ func TestEveryAcceptedTransitionIsOffered(t *testing.T) {
 	}
 }
 
-// Agents do not get an interface, and must never be offered one.
-func TestAnAgentIsOfferedNoReviewActions(t *testing.T) {
-	in := base()
-	in.From, in.To, in.ActorIsAgent, in.ActorLevel = auditmode.StatusReviewL1, "", true, LevelL1
-	for _, a := range Available(in) {
-		if a.To != auditmode.StatusAgentDelivered {
-			t.Errorf("an agent was offered %q", a.To)
+// Agents do not get a review interface, and must never be offered one. With the
+// handover gone there is nothing an agent may be offered at all: what it has to
+// say about a draft it says in a comment.
+func TestAnAgentIsOfferedNothing(t *testing.T) {
+	for _, from := range []string{auditmode.StatusDrafting, auditmode.StatusReviewL1, auditmode.StatusReviewL3} {
+		in := base()
+		in.From, in.To, in.ActorIsAgent, in.ActorLevel = from, "", true, LevelL1
+		if actions := Available(in); len(actions) != 0 {
+			t.Errorf("an agent at %s was offered %v", from, keys(actions))
 		}
 	}
 }

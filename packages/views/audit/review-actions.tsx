@@ -137,8 +137,6 @@ function actionLabel(t: ReturnType<typeof useT<"issues">>["t"], event: string): 
     case "workpaper_review_rejected": return t(($) => $.audit.action.workpaper_review_rejected);
     case "workpaper_filed": return t(($) => $.audit.action.workpaper_filed);
     case "workpaper_cancelled": return t(($) => $.audit.action.workpaper_cancelled);
-    case "workpaper_draft_adopted": return t(($) => $.audit.action.workpaper_draft_adopted);
-    case "workpaper_handed_over": return t(($) => $.audit.action.workpaper_handed_over);
     default: return t(($) => $.audit.action.fallback);
   }
 }

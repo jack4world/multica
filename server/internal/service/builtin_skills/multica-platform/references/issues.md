@@ -358,23 +358,20 @@ Two things follow, and the second is the one that goes wrong.
 the person who prepared it is barred from reviewing it. Do not try. Do not ask a
 human to grant you a rank so that you can.
 
-**Finishing your run is NOT a handover.** This is the one that costs time. When
-you finish drafting a workpaper, the status stays where it was — `drafting` —
-and nobody knows the draft is ready. It sits in no review queue and in nobody's
-assigned work. Hand it over explicitly:
+**Leave an account when you finish, and do not change the status.** A workpaper
+you have drafted stays in `drafting` until a PERSON submits it for review —
+that submission is where authorship passes to them, and it is not yours to make.
+
+What you owe them is a comment saying what you did and what you could not
+verify:
 
 ```bash
-multica issue handover <issue-id> --note "Sampled 40 of 612 payments over ¥50k. Three lack a second approval; listed in the description. Could NOT verify the two 2024-11 vouchers — the scans are unreadable."
+multica comment create <issue-id> --body "Sampled 40 of 612 payments over ¥50k. Three lack a second approval; listed in the description. Could NOT verify the two 2024-11 vouchers — the scans are unreadable."
 ```
 
-The note is required and is preserved in the audit trail, unchanged, through
-every later edit. The person adopting your draft reads it before they read the
-draft, and an auditor reading the filed workpaper months later can still see
-what you claimed at the time.
-
-**Say what you could not verify.** That half is what a human has to pick up. A
-note that only lists what went well is the note that gets someone in trouble
-later.
+**The second half is the point.** A note that only lists what went well is the
+note that gets someone in trouble later; what you could not verify is what a
+human has to pick up.
 
 ## Incorrect to correct
 
@@ -385,19 +382,18 @@ Fix login redirect                  # incorrect — no issue key, won't link
 MUL-123: fix login redirect        # correct — links the PR
 ```
 
-Handing over a drafted workpaper (audit workspaces):
+Finishing a drafted workpaper (audit workspaces):
 
 ```bash
-# incorrect — the run ended, but the workpaper still sits in drafting and
-# nobody knows the draft is ready
+# incorrect — the draft changed and nobody knows what you did or did not check
 multica issue update <issue-id> --description "..."
 
-# incorrect — a handover with no account is a status change wearing a
-# better name; the CLI refuses it
-multica issue handover <issue-id>
+# incorrect — submitting for review is the PERSON's act; it is where authorship
+# passes to them, and the gate refuses it from an agent
+multica issue status <issue-id> review_l1
 
-# correct — named act, with what you did AND what you could not verify
-multica issue handover <issue-id> --note "Ratio analysis on 2025 payables complete; two variances over 30% documented. Could not reconcile the Q3 accrual — the supporting schedule is missing."
+# correct — leave the account, let a person submit
+multica comment create <issue-id> --body "Ratio analysis on 2025 payables complete; two variances over 30% documented. Could not reconcile the Q3 accrual — the supporting schedule is missing."
 ```
 
 Serial / phased sub-issues (don't start the whole chain at once):

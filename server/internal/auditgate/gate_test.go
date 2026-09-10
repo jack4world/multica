@@ -42,7 +42,6 @@ func TestAWorkpaperCannotLeaveItsEngagementWhileInTheChain(t *testing.T) {
 	for _, from := range []string{
 		auditmode.StatusDrafting,
 		auditmode.StatusReviewL2,
-		auditmode.StatusAgentDelivered,
 	} {
 		t.Run(from, func(t *testing.T) {
 			in := base()
@@ -62,7 +61,6 @@ func TestAnIssueCannotBeMovedIntoAnEngagementCarryingAReviewStatus(t *testing.T)
 	for _, status := range []string{
 		auditmode.StatusFiled,
 		auditmode.StatusReviewL3,
-		auditmode.StatusAgentDelivered,
 	} {
 		t.Run(status, func(t *testing.T) {
 			in := base()
@@ -354,7 +352,6 @@ func TestAWorkpaperCannotLeaveTheChainForAnOrdinaryStatus(t *testing.T) {
 		{auditmode.StatusReviewL2, "done"},
 		{auditmode.StatusReviewL1, "todo"},
 		{auditmode.StatusDrafting, "done"},
-		{auditmode.StatusAgentDelivered, "in_progress"},
 	} {
 		t.Run(tc.from+"_to_"+tc.to, func(t *testing.T) {
 			in := base()
@@ -409,40 +406,6 @@ func TestCancellingAWorkpaperNeedsAReviewerRoleOrAdmin(t *testing.T) {
 	})
 }
 
-func TestOnlyAnAgentHandsOverADraftAndOnlyFromDrafting(t *testing.T) {
-	t.Run("agent hands over", func(t *testing.T) {
-		in := base()
-		in.From, in.To = auditmode.StatusDrafting, auditmode.StatusAgentDelivered
-		in.ActorIsAgent, in.ActorLevel, in.PreparerID = true, "", ""
-		if d := Decide(in); !d.Allowed {
-			t.Fatalf("agent handover denied: %s", d.Reason)
-		}
-	})
-	t.Run("a human cannot fake a handover", func(t *testing.T) {
-		in := base()
-		in.From, in.To, in.ActorLevel = auditmode.StatusDrafting, auditmode.StatusAgentDelivered, ""
-		if d := Decide(in); d.Allowed {
-			t.Fatal("a member performed an agent handover")
-		}
-	})
-	t.Run("not from a review status", func(t *testing.T) {
-		in := base()
-		in.From, in.To = auditmode.StatusReviewL2, auditmode.StatusAgentDelivered
-		in.ActorIsAgent = true
-		if d := Decide(in); d.Allowed {
-			t.Fatal("an agent pulled a workpaper out of review")
-		}
-	})
-}
-
-func TestAdoptingAnAgentDraftReturnsItToDrafting(t *testing.T) {
-	in := base()
-	in.From, in.To, in.ActorLevel, in.PreparerID = auditmode.StatusAgentDelivered, auditmode.StatusDrafting, "", ""
-	if d := Decide(in); !d.Allowed {
-		t.Fatalf("adopting an agent draft denied: %s", d.Reason)
-	}
-}
-
 // An agent inherits its runtime owner's credentials, so every review decision
 // has to be closed to it explicitly rather than by hoping it holds no role.
 func TestAnAgentCannotMakeAReviewDecision(t *testing.T) {
@@ -471,7 +434,6 @@ func TestCreatingAWorkpaperCannotStartInsideTheChain(t *testing.T) {
 		auditmode.StatusReviewL1,
 		auditmode.StatusReviewL3,
 		auditmode.StatusFiled,
-		auditmode.StatusAgentDelivered,
 	} {
 		t.Run(to, func(t *testing.T) {
 			in := base()
@@ -534,7 +496,6 @@ func TestAFiledWorkpaperRejectsEvenAContentEdit(t *testing.T) {
 func TestGovernsCoversEveryTransitionDecideCanDeny(t *testing.T) {
 	chain := []string{
 		auditmode.StatusDrafting,
-		auditmode.StatusAgentDelivered,
 		auditmode.StatusReviewL1,
 		auditmode.StatusReviewL2,
 		auditmode.StatusReviewL3,

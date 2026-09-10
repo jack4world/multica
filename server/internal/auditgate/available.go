@@ -16,7 +16,6 @@ import "github.com/multica-ai/multica/server/internal/auditmode"
 func Available(in Input) []Action {
 	candidates := []string{
 		auditmode.StatusDrafting,
-		auditmode.StatusAgentDelivered,
 		auditmode.StatusReviewL1,
 		auditmode.StatusReviewL2,
 		auditmode.StatusReviewL3,

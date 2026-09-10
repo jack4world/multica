@@ -56,8 +56,6 @@ type Event string
 
 const (
 	EventSubmitted      Event = "workpaper_submitted"
-	EventHandedOver     Event = "workpaper_handed_over"
-	EventDraftAdopted   Event = "workpaper_draft_adopted"
 	EventReviewPassed   Event = "workpaper_review_passed"
 	EventReviewRejected Event = "workpaper_review_rejected"
 	// EventFiled is deliberately not "passed at level three". An auditor reads
@@ -280,32 +278,15 @@ func Decide(in Input) Decision {
 
 	switch in.To {
 	case auditmode.StatusDrafting:
-		// Reached three ways: creating a workpaper, adopting an agent's draft,
-		// and a rejection from any level. Only the last needs a rank.
+		// Reached two ways: creating a workpaper, and a rejection from any
+		// level. Only the second needs a rank.
 		if level, isReview := levelFor(in.From); isReview {
 			return decideChainStep(in, level)
 		}
 		if in.ActorIsAgent {
 			return deny(DenyAgent, "an agent cannot move a workpaper to %q", in.To)
 		}
-		if in.From == auditmode.StatusAgentDelivered {
-			return record(EventDraftAdopted, "")
-		}
 		return allow()
-
-	case auditmode.StatusAgentDelivered:
-		// A handover is an agent's explicit statement that its draft is ready
-		// for a human. An agent run merely finishing is not one, and a human
-		// must not be able to manufacture one.
-		if !in.ActorIsAgent {
-			return deny(DenyIllegalTransition,
-				"%q is set by an agent handing over its draft, not by a member", in.To)
-		}
-		if in.From != auditmode.StatusDrafting {
-			return deny(DenyIllegalTransition,
-				"an agent can only hand over a workpaper that is in %q", auditmode.StatusDrafting)
-		}
-		return record(EventHandedOver, "")
 
 	case auditmode.StatusReviewL1:
 		if in.From != auditmode.StatusDrafting {

@@ -2,7 +2,7 @@
 SELECT w.id, w.name, w.slug, w.description, w.settings,
        w.created_at, w.updated_at, w.context, w.repos,
        w.issue_prefix, w.issue_counter, w.avatar_url, w.attribution_fail_closed,
-       w.audit_mode_enabled_at, w.client_name, w.confidentiality
+       w.audit_mode_enabled_at, w.client_name
 FROM member m
 JOIN workspace w ON w.id = m.workspace_id
 WHERE m.user_id = $1
@@ -55,7 +55,6 @@ UPDATE workspace SET
     issue_prefix = COALESCE(sqlc.narg('issue_prefix'), issue_prefix),
     avatar_url = COALESCE(sqlc.narg('avatar_url'), avatar_url),
     client_name = COALESCE(sqlc.narg('client_name'), client_name),
-    confidentiality = COALESCE(sqlc.narg('confidentiality'), confidentiality),
     updated_at = now()
 WHERE id = $1
 RETURNING *;

@@ -53,21 +53,6 @@ func TestFilingIsNotRecordedAsAPass(t *testing.T) {
 	}
 }
 
-func TestAgentHandoverAndAdoptionAreDistinctEvents(t *testing.T) {
-	handover := base()
-	handover.From, handover.To = auditmode.StatusDrafting, auditmode.StatusAgentDelivered
-	handover.ActorIsAgent, handover.ActorLevel, handover.PreparerID = true, "", ""
-	if got := Decide(handover).Event; got != EventHandedOver {
-		t.Errorf("handover event = %q, want %q", got, EventHandedOver)
-	}
-
-	adopt := base()
-	adopt.From, adopt.To, adopt.ActorLevel, adopt.PreparerID = auditmode.StatusAgentDelivered, auditmode.StatusDrafting, "", ""
-	if got := Decide(adopt).Event; got != EventDraftAdopted {
-		t.Errorf("adoption event = %q, want %q", got, EventDraftAdopted)
-	}
-}
-
 // The trail says what happened, not what was attempted. A refused request
 // changed nothing, and recording refusals would let anyone fill an auditee's
 // history with noise by hammering an endpoint they have no rank on.

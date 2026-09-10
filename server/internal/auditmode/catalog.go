@@ -67,12 +67,9 @@ func ValidateLocale(v string) (Locale, error) {
 const (
 	// StatusDrafting is the preparer writing, or an agent running.
 	StatusDrafting = "drafting"
-	// StatusAgentDelivered is an agent's explicit handover of a draft. An agent
-	// run merely finishing is not a handover (Q17).
-	StatusAgentDelivered = "agent_delivered"
-	StatusReviewL1       = "review_l1"
-	StatusReviewL2       = "review_l2"
-	StatusReviewL3       = "review_l3"
+	StatusReviewL1 = "review_l1"
+	StatusReviewL2 = "review_l2"
+	StatusReviewL3 = "review_l3"
 	// StatusFiled is the terminal state: passed all three levels, immutable.
 	// NOT keyed "archived" — issue_status.archived_at already means "this
 	// status definition was retired", and one table cannot carry two senses of
@@ -93,7 +90,14 @@ type StatusDef struct {
 // Statuses returns the review chain in board order.
 //
 // Every status a workpaper WAITS in is in_review, and that is load-bearing
-// rather than cosmetic. in_review is the only category that both finalizes the
+// rather than cosmetic.
+//
+// There is no status between drafting and review. An agent that finishes a
+// draft leaves its account as a COMMENT and the workpaper stays in 编制中; a
+// person submits it when they judge it ready. A workflow state is the most
+// expensive way to represent something — it appears in the picker, the board,
+// the filters and the vocabulary an auditor has to learn — so it has to earn
+// its place in the AUDITOR's model, not only in ours. in_review is the only category that both finalizes the
 // autopilot run (service/autopilot.go) and is skipped by the stuck-issue
 // sweeper (service/task.go, which resets in_progress). A workpaper parked in an
 // in_progress-category status while it waits for its reviewer would be reset by
@@ -111,19 +115,6 @@ func Statuses() []StatusDef {
 			Descriptions: map[Locale]string{
 				LocaleZhHans: "编制人正在编写，或 agent 正在执行。",
 				LocaleEn:     "The preparer is writing, or an agent is running.",
-			},
-		},
-		{
-			Key:      StatusAgentDelivered,
-			Category: issuestatus.InReview,
-			Color:    "#8b5cf6",
-			Names: map[Locale]string{
-				LocaleZhHans: "待采纳",
-				LocaleEn:     "Awaiting Adoption",
-			},
-			Descriptions: map[Locale]string{
-				LocaleZhHans: "Agent 已交付草稿，等待编制人采纳。署名归编制人。",
-				LocaleEn:     "An agent handed over a draft; the preparer has yet to adopt it. Authorship stays with the preparer.",
 			},
 		},
 		{
