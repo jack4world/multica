@@ -200,30 +200,32 @@ vi.mock("@multica/core", () => ({
   useWorkspaceId: () => "ws-test",
 }));
 
-vi.mock("@multica/core/paths", async (importOriginal) => ({
+vi.mock("@multica/core/paths", async (importOriginal) => {
   // Spread the real module so pure helpers (resolveRouteIconName, used to
   // derive each nav page's icon from its href) stay intact.
-  ...(await importOriginal<typeof import("@multica/core/paths")>()),
-  useWorkspacePaths: () => ({
-    inbox: () => "/ws-test/inbox",
-    chat: () => "/ws-test/chat",
-    myIssues: () => "/ws-test/my-issues",
-    issues: () => "/ws-test/issues",
-    projects: () => "/ws-test/projects",
-    autopilots: () => "/ws-test/autopilots",
-    agents: () => "/ws-test/agents",
-    squads: () => "/ws-test/squads",
-    usage: () => "/ws-test/usage",
-    runtimes: () => "/ws-test/runtimes",
-    skills: () => "/ws-test/skills",
-    settings: () => "/ws-test/settings",
-    issueDetail: (id: string) => `/ws-test/issues/${id}`,
-    memberDetail: (id: string) => `/ws-test/members/${id}`,
-    agentDetail: (id: string) => `/ws-test/agents/${id}`,
-    squadDetail: (id: string) => `/ws-test/squads/${id}`,
-    projectDetail: (id: string) => `/ws-test/projects/${id}`,
-  }),
-}));
+  const real = await importOriginal<typeof import("@multica/core/paths")>();
+  // Built FROM WORKSPACE_PAGES, not listed beside it. This suite's first
+  // assertion is that the palette offers every nav page rather than a
+  // hand-maintained subset; a hand-maintained mock is the same bug one layer
+  // down, and it crashed the whole file the day a page was added.
+  const navBuilders = Object.fromEntries(
+    Object.entries(real.WORKSPACE_PAGES).map(([key, page]) => [
+      key,
+      () => `/ws-test/${page.segment}`,
+    ]),
+  );
+  return {
+    ...real,
+    useWorkspacePaths: () => ({
+      ...navBuilders,
+      issueDetail: (id: string) => `/ws-test/issues/${id}`,
+      memberDetail: (id: string) => `/ws-test/members/${id}`,
+      agentDetail: (id: string) => `/ws-test/agents/${id}`,
+      squadDetail: (id: string) => `/ws-test/squads/${id}`,
+      projectDetail: (id: string) => `/ws-test/projects/${id}`,
+    }),
+  };
+});
 
 vi.mock("@multica/core/issues/queries", () => ({
   issueDetailOptions: (_wsId: string, id: string) => ({
