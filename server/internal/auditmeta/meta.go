@@ -6,11 +6,11 @@
 // every year's audit is how copies drift apart. Two describe ONE audit and live
 // on the project.
 //
-// The confidentiality label is the one to read carefully: it is a MARKING on
-// the material, not a permission. Access isolation is auditee membership and
-// nothing else (ADR-0001), and nothing in this codebase may read this value
-// into a query. A label that also filtered would be a second, drifting answer
-// to "who can see this".
+// There is deliberately no sensitivity label here. ADR-0001 makes auditee
+// membership the whole isolation model, and a field that restates that without
+// enforcing it invites the opposite reading — somebody relies on a badge marked
+// 绝密 as protection. Material that must be kept separate goes in a separate
+// auditee.
 package auditmeta
 
 import (
@@ -60,32 +60,6 @@ func ValidAuditType(v string) bool {
 // ValidAuditTypeOrEmpty allows the unset case: an engagement can be opened
 // before its kind is decided.
 func ValidAuditTypeOrEmpty(v string) bool { return v == "" || ValidAuditType(v) }
-
-// Confidentiality labels. A closed set so an interface can render each one
-// distinctly and consistently.
-const (
-	ConfidentialityNormal     = "normal"
-	ConfidentialityRestricted = "restricted"
-	ConfidentialitySecret     = "secret"
-)
-
-// ConfidentialityLabels lists the markings, least to most sensitive.
-func ConfidentialityLabels() []string {
-	return []string{ConfidentialityNormal, ConfidentialityRestricted, ConfidentialitySecret}
-}
-
-// ValidConfidentiality reports whether v names a marking.
-func ValidConfidentiality(v string) bool {
-	for _, l := range ConfidentialityLabels() {
-		if v == l {
-			return true
-		}
-	}
-	return false
-}
-
-// ValidConfidentialityOrEmpty allows the unset case.
-func ValidConfidentialityOrEmpty(v string) bool { return v == "" || ValidConfidentiality(v) }
 
 // dateLayout is the calendar-date form the API speaks, matching every other
 // date field on the platform.

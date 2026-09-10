@@ -25,7 +25,10 @@ A planned piece of examination work, identified by a procedure code. One-to-one 
 _Avoid_: 步骤, task, run
 
 **审计资料 (Document)**:
-Original material belonging to an auditee, filed under a classification tree. Vouchers, policy documents and contracts are categories of it, not separate kinds. Uses a platform attachment as its binary carrier.
+Original material belonging to an auditee — its policies, contracts, vouchers,
+confirmations — filed under a classification tree two levels deep. A particular
+workpaper's own supporting scan is not one of these: it is an attachment on that
+workpaper, where the test it supports is. Vouchers, policy documents and contracts are categories of it, not separate kinds. Uses a platform attachment as its binary carrier.
 _Avoid_: 附件, 凭证 (a voucher is one category of document, not a synonym)
 
 ### People
@@ -48,9 +51,6 @@ _Avoid_: 审核, 审批, 批准
 The terminal state a workpaper reaches after passing all three review levels. Immutable: a correction is a new version, never an edit. Unrelated to a status definition being retired from the catalog.
 _Avoid_: 完成, 锁定, 封存, locked
 
-**移交 (Handover)**:
-An agent's explicit declaration that its draft is ready for a human to adopt. An agent run finishing is not a handover.
-_Avoid_: 完成, 提交, submit
 
 ### Findings
 
@@ -70,6 +70,3 @@ _Avoid_: 问题, 发现
 Keeps its audit meaning only: the planning-stage assessment of where material misstatement is likely, used to decide what to examine and how deeply. Never a word for an observation or a finding.
 _Avoid_: using it for anything a procedure discovers
 
-**密级 (Confidentiality Label)**:
-A display label on an auditee. It filters nothing — access isolation is workspace membership and nothing else (ADR-0001).
-_Avoid_: 权限, 访问级别, access level

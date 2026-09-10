@@ -309,10 +309,6 @@ function formatActivity(
     // a sentence.
     case "workpaper_submitted":
       return t(($) => $.activity.workpaper_submitted);
-    case "workpaper_handed_over":
-      return t(($) => $.activity.workpaper_handed_over);
-    case "workpaper_draft_adopted":
-      return t(($) => $.activity.workpaper_draft_adopted);
     case "workpaper_review_passed":
       return t(($) => $.activity.workpaper_review_passed, {
         level: details.level ?? "?",

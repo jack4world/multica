@@ -780,12 +780,6 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.AuditTrailExportJob(queries, storage.NewAuditExportStorageFromEnv())); err != nil {
 		slog.Warn("scheduler: failed to register audit_trail_export job", "error", err)
 	}
-	// A delivered draft is visible nowhere — not in a review queue, not in
-	// anyone's assigned work — so it is the one stall in the chain that needs a
-	// job to notice it. Inert on a deployment with no auditees.
-	if err := schedulerMgr.Register(scheduler.AuditHandoverReminderJob(queries)); err != nil {
-		slog.Warn("scheduler: failed to register audit_handover_reminder job", "error", err)
-	}
 	go func() {
 		_ = schedulerMgr.Run(sweepCtx)
 	}()

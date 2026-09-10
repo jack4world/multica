@@ -22,9 +22,11 @@ const (
 	// enough categories to collide.
 	separator = "/"
 
-	// MaxDepth bounds the tree. A path is a filing scheme, not a filesystem;
-	// an uncapped one makes prefix reads slow and paths unreadable.
-	MaxDepth = 4
+	// MaxDepth bounds the tree at what an audit file actually is: a section and
+	// its drawers. Four levels was chosen because materialised paths make deep
+	// prefix reads cheap, which is true and was not the question — the question
+	// is how deep an audit file goes, and it is two.
+	MaxDepth = 2
 
 	// segmentLen is fixed at two digits so the tree sorts lexically in the
 	// order an auditor expects — "10" after "09", not between "01" and "02".
@@ -94,6 +96,12 @@ type Category struct {
 }
 
 // StandardScheme is the classification a new auditee starts from.
+//
+// AUDITEE-LEVEL MATERIAL ONLY: the client's policies, contracts, vouchers and
+// confirmations, which span every audit of it. A particular workpaper's own
+// supporting scan is NOT filed here — it is an attachment on that workpaper,
+// where the test it supports is. Putting both in one place is how a library
+// stops being the thing you look in for a policy.
 //
 // Seeded rather than invented per client for two reasons: nobody should be
 // designing a taxonomy under time pressure, and anyone moving between clients

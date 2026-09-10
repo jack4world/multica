@@ -5,6 +5,15 @@ import "testing"
 // The boundary rules for an auditee's and an engagement's recorded facts.
 // Pure: what is storable and what is refused, with no database.
 
+// There is no sensitivity label, on purpose: a field that looks like a
+// permission and is not one is worse than no field. Separation is a separate
+// auditee (ADR-0001).
+func TestThereIsNoSensitivityLabel(t *testing.T) {
+	// If this stops compiling because someone added one back, the question to
+	// answer first is what it does — not what values it takes.
+	_ = AuditTypes()
+}
+
 func TestAPeriodMayBeOpenAtEitherEnd(t *testing.T) {
 	// An engagement is often opened before its scope is fixed.
 	for _, tc := range []struct{ name, start, end string }{
@@ -63,23 +72,5 @@ func TestTheListCarriesAnEscape(t *testing.T) {
 func TestAnAuditTypeIsOptional(t *testing.T) {
 	if !ValidAuditTypeOrEmpty("") {
 		t.Error("an engagement must be openable before its kind is decided")
-	}
-}
-
-// The label is a MARKING, not a permission. The set is closed so the interface
-// can render each one distinctly; nothing else reads it.
-func TestTheConfidentialityLabelSetIsClosed(t *testing.T) {
-	for _, ok := range ConfidentialityLabels() {
-		if !ValidConfidentiality(ok) {
-			t.Errorf("%q is in the set but rejected", ok)
-		}
-	}
-	for _, bad := range []string{"top_secret", "1", "机密", "  "} {
-		if ValidConfidentiality(bad) {
-			t.Errorf("accepted %q as a confidentiality label", bad)
-		}
-	}
-	if !ValidConfidentialityOrEmpty("") {
-		t.Error("an auditee must be creatable before its sensitivity is decided")
 	}
 }

@@ -6,7 +6,7 @@ import "testing"
 // what "everything under here" means. No database.
 
 func TestAValidPathIsSegmentsOfDigits(t *testing.T) {
-	for _, ok := range []string{"01", "02", "02/01", "02/01/03", "10/20/30/40"} {
+	for _, ok := range []string{"01", "02", "02/01", "10/20"} {
 		if err := ValidatePath(ok); err != nil {
 			t.Errorf("%q refused: %v", ok, err)
 		}
@@ -33,14 +33,15 @@ func TestAPathIsRefusedWhenItCannotBeFiledUnder(t *testing.T) {
 	}
 }
 
-// A path is a filing scheme, not a filesystem. An uncapped one makes prefix
-// reads slow and paths unreadable.
-func TestDepthIsCapped(t *testing.T) {
-	if err := ValidatePath("01/02/03/04"); err != nil {
-		t.Errorf("four levels refused: %v", err)
+// Two levels: a section and its drawers. That is what an audit file is, and a
+// deeper tree turns filing from a choice between drawers into a navigation
+// problem.
+func TestDepthIsCappedAtTwo(t *testing.T) {
+	if err := ValidatePath("01/02"); err != nil {
+		t.Errorf("two levels refused: %v", err)
 	}
-	if err := ValidatePath("01/02/03/04/05"); err == nil {
-		t.Error("five levels accepted; the depth cap is not doing anything")
+	if err := ValidatePath("01/02/03"); err == nil {
+		t.Error("three levels accepted; an audit file is a section and its drawers")
 	}
 }
 
@@ -49,7 +50,7 @@ func TestDepthIsCapped(t *testing.T) {
 // 02/01 and must NOT return 020.
 func TestAPrefixMatchesChildrenAndNotSiblingsThatStartTheSameWay(t *testing.T) {
 	under := UnderPath("02")
-	for _, yes := range []string{"02", "02/01", "02/01/03"} {
+	for _, yes := range []string{"02", "02/01"} {
 		if !under(yes) {
 			t.Errorf("%q is not under 02, but it is", yes)
 		}

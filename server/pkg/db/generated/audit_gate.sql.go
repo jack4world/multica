@@ -614,76 +614,6 @@ func (q *Queries) ListReviewQueueForMember(ctx context.Context, arg ListReviewQu
 	return items, nil
 }
 
-const listStaleHandovers = `-- name: ListStaleHandovers :many
-SELECT i.id, i.workspace_id, i.title, i.assignee_type, i.assignee_id,
-       i.creator_type, i.creator_id, i.updated_at
-FROM issue i
-LEFT JOIN audit_workpaper w ON w.issue_id = i.id
-WHERE i.workspace_id = ANY($1::uuid[])
-  AND i.status = $2::text
-  AND i.updated_at < $3::timestamptz
-  AND (w.handover_reminded_at IS NULL)
-ORDER BY i.updated_at ASC
-LIMIT $4
-`
-
-type ListStaleHandoversParams struct {
-	WorkspaceIds []pgtype.UUID      `json:"workspace_ids"`
-	Status       string             `json:"status"`
-	OlderThan    pgtype.Timestamptz `json:"older_than"`
-	Lim          int32              `json:"lim"`
-}
-
-type ListStaleHandoversRow struct {
-	ID           pgtype.UUID        `json:"id"`
-	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
-	Title        string             `json:"title"`
-	AssigneeType pgtype.Text        `json:"assignee_type"`
-	AssigneeID   pgtype.UUID        `json:"assignee_id"`
-	CreatorType  string             `json:"creator_type"`
-	CreatorID    pgtype.UUID        `json:"creator_id"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-}
-
-// Delivered drafts that have waited too long and have not been reminded about.
-//
-// LEFT JOIN because a workpaper handed over by an agent may never have been
-// submitted by a person, so it can have no audit_workpaper row at all — and
-// those are exactly the ones most likely to be forgotten.
-func (q *Queries) ListStaleHandovers(ctx context.Context, arg ListStaleHandoversParams) ([]ListStaleHandoversRow, error) {
-	rows, err := q.db.Query(ctx, listStaleHandovers,
-		arg.WorkspaceIds,
-		arg.Status,
-		arg.OlderThan,
-		arg.Lim,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListStaleHandoversRow{}
-	for rows.Next() {
-		var i ListStaleHandoversRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.AssigneeType,
-			&i.AssigneeID,
-			&i.CreatorType,
-			&i.CreatorID,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listWorkspaceActivityForDay = `-- name: ListWorkspaceActivityForDay :many
 SELECT id, issue_id, actor_type, actor_id, action, details, created_at
 FROM activity_log
@@ -795,31 +725,6 @@ func (q *Queries) LockIssueForReviewGate(ctx context.Context, arg LockIssueForRe
 		&i.LastActivityAt,
 	)
 	return i, err
-}
-
-const markHandoverReminded = `-- name: MarkHandoverReminded :exec
-INSERT INTO audit_workpaper (issue_id, workspace_id, handover_reminded_at)
-VALUES (
-    $1::uuid,
-    $2::uuid,
-    now()
-)
-ON CONFLICT (issue_id) DO UPDATE
-SET handover_reminded_at = now(),
-    updated_at = now()
-`
-
-type MarkHandoverRemindedParams struct {
-	IssueID     pgtype.UUID `json:"issue_id"`
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
-}
-
-// Recorded so the reminder is sent once. Upserts because a workpaper an agent
-// handed over may have no row yet: it was never SUBMITTED by a person, so it
-// has no preparer, which is why that column is nullable.
-func (q *Queries) MarkHandoverReminded(ctx context.Context, arg MarkHandoverRemindedParams) error {
-	_, err := q.db.Exec(ctx, markHandoverReminded, arg.IssueID, arg.WorkspaceID)
-	return err
 }
 
 const moveAuditDocument = `-- name: MoveAuditDocument :one

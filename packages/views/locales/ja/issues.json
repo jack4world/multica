@@ -471,8 +471,6 @@
     "activity_count_other": "アクティビティ {{count}} 件",
     "show_more_activities_other": "アクティビティをさらに {{count}} 件表示",
     "workpaper_submitted": "submitted the workpaper for review",
-    "workpaper_handed_over": "handed over a draft for adoption",
-    "workpaper_draft_adopted": "adopted the draft",
     "workpaper_review_passed": "passed review at {{level}}",
     "workpaper_review_rejected": "returned the workpaper to its preparer",
     "workpaper_filed": "filed the workpaper",
@@ -885,8 +883,6 @@
       "workpaper_review_rejected": "Return to preparer",
       "workpaper_filed": "Approve and file",
       "workpaper_cancelled": "Cancel workpaper",
-      "workpaper_draft_adopted": "Adopt draft",
-      "workpaper_handed_over": "Hand over draft",
       "fallback": "Change status"
     },
     "level": {

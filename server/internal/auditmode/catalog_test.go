@@ -18,7 +18,6 @@ func TestStatusesFormAReviewChainEndingInAnImmutableState(t *testing.T) {
 	}
 	want := []string{
 		StatusDrafting,
-		StatusAgentDelivered,
 		StatusReviewL1,
 		StatusReviewL2,
 		StatusReviewL3,
@@ -48,7 +47,7 @@ func TestEveryStatusCategoryIsCanonical(t *testing.T) {
 // (service/task.go) — in_progress is swept, which would reset a workpaper that
 // is merely waiting for its reviewer.
 func TestWaitingStatusesAreInReviewSoTheSweeperLeavesThemAlone(t *testing.T) {
-	waiting := []string{StatusAgentDelivered, StatusReviewL1, StatusReviewL2, StatusReviewL3}
+	waiting := []string{StatusReviewL1, StatusReviewL2, StatusReviewL3}
 	for _, key := range waiting {
 		s, ok := StatusByKey(key)
 		if !ok {
@@ -56,6 +55,24 @@ func TestWaitingStatusesAreInReviewSoTheSweeperLeavesThemAlone(t *testing.T) {
 		}
 		if s.Category != issuestatus.InReview {
 			t.Errorf("status %q category = %q, want %q", key, s.Category, issuestatus.InReview)
+		}
+	}
+}
+
+// Every status in the chain has to be a stage an auditor would recognise. A
+// state that exists for the software's benefit — as 待采纳 did, to give an
+// agent's output somewhere to sit — shows up in the picker, the board, the
+// filters and the vocabulary, and is paid for by every person who uses the
+// product rather than by the code that needed it.
+func TestEveryStatusIsAStageOfAnAudit(t *testing.T) {
+	stages := map[string]bool{
+		StatusDrafting: true, StatusReviewL1: true, StatusReviewL2: true,
+		StatusReviewL3: true, StatusFiled: true,
+	}
+	for _, s := range Statuses() {
+		if !stages[s.Key] {
+			t.Errorf("status %q is not a stage of an audit; if the software needs a place to "+
+				"put something, a comment or a field is cheaper than a workflow state", s.Key)
 		}
 	}
 }

@@ -471,8 +471,6 @@
     "activity_count_other": "{{count}} 条动态",
     "show_more_activities_other": "展开更早 {{count}} 条动态",
     "workpaper_submitted": "提交工作底稿复核",
-    "workpaper_handed_over": "交付草稿待采纳",
-    "workpaper_draft_adopted": "采纳了草稿",
     "workpaper_review_passed": "{{level}} 复核通过",
     "workpaper_review_rejected": "将工作底稿退回编制人",
     "workpaper_filed": "工作底稿已归档",
@@ -885,8 +883,6 @@
       "workpaper_review_rejected": "退回编制人",
       "workpaper_filed": "通过并归档",
       "workpaper_cancelled": "取消底稿",
-      "workpaper_draft_adopted": "采纳草稿",
-      "workpaper_handed_over": "交付草稿",
       "fallback": "修改状态"
     },
     "level": {

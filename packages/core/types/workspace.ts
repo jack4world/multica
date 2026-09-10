@@ -17,8 +17,6 @@ export interface Workspace {
   avatar_url: string | null;
   /** The legal entity under audit. Absent on a workspace that is not an auditee. */
   client_name?: string | null;
-  /** A MARKING on the material, never a permission — isolation is membership. */
-  confidentiality?: string | null;
   created_at: string;
   updated_at: string;
 }
