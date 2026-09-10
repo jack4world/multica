@@ -82,6 +82,11 @@ func (h *Handler) loadEngagementForRoleAdmin(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusNotFound, "project not found")
 		return db.Project{}, false
 	}
+	// Seating or removing a reviewer on a closed file changes who the archive
+	// says was responsible, without changing the archive.
+	if refuseArchivedEngagement(w, project) {
+		return db.Project{}, false
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return db.Project{}, false

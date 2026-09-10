@@ -2,14 +2,12 @@ package handler
 
 import (
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/auditmode"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
@@ -222,48 +220,18 @@ type RaiseRemediationRequest struct {
 // It keeps a pointer to the engagement that raised it, which is where the
 // verifier's rank is read from when someone later says the problem is fixed.
 func (h *Handler) RaiseRemediationItem(w http.ResponseWriter, r *http.Request) {
-	workspaceID := h.resolveWorkspaceID(r)
-	member, ok := h.requireWorkspaceRole(w, r, workspaceID, "workspace not found", "owner", "admin", "member")
+	// Through the shared loader, which is what refuses an archived engagement:
+	// raising an item is the audit function asserting that this auditee owes a
+	// fix, and an item raised after the file closed is one the卷宗 does not
+	// know about.
+	project, _, ok := h.requireEngagementRank(w, r, false)
 	if !ok {
 		return
 	}
-	wsUUID, ok := parseUUIDOrBadRequest(w, workspaceID, "workspace id")
-	if !ok {
-		return
-	}
-	projectUUID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "project id")
-	if !ok {
-		return
-	}
-	project, err := h.Queries.GetProjectInWorkspace(r.Context(), db.GetProjectInWorkspaceParams{
-		ID: projectUUID, WorkspaceID: wsUUID,
-	})
-	if err != nil {
-		writeError(w, http.StatusNotFound, "engagement not found")
-		return
-	}
+	wsUUID := project.WorkspaceID
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
-	}
-	// Raising an item is the audit function's act: it is an assertion that this
-	// auditee owes a fix. A member with no rank on the engagement has not made
-	// that finding.
-	isAdmin := member.Role == "owner" || member.Role == "admin"
-	if !isAdmin {
-		level, levelErr := h.Queries.GetAuditRoleLevel(r.Context(), db.GetAuditRoleLevelParams{
-			ProjectID: project.ID, MemberID: member.ID,
-		})
-		if levelErr != nil && !errors.Is(levelErr, pgx.ErrNoRows) {
-			slog.Warn("audit role read failed", append(logger.RequestAttrs(r), "error", levelErr)...)
-			writeError(w, http.StatusInternalServerError, "failed to raise the remediation item")
-			return
-		}
-		if levelErr != nil || level == "" {
-			writeError(w, http.StatusForbidden,
-				"raising a remediation item needs a reviewer role on this engagement")
-			return
-		}
 	}
 
 	var req RaiseRemediationRequest

@@ -61,7 +61,7 @@ type CreateAuditReportRequest struct {
 
 // CreateAuditReport starts the engagement's next report.
 func (h *Handler) CreateAuditReport(w http.ResponseWriter, r *http.Request) {
-	project, _, ok := h.requireEngagementRank(w, r)
+	project, _, ok := h.requireEngagementRank(w, r, false)
 	if !ok {
 		return
 	}
@@ -209,6 +209,12 @@ func (h *Handler) UpdateAuditReport(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeError(w, http.StatusNotFound, "engagement not found")
+		return
+	}
+	// An unsigned report can outlive archival — archiving requires an ISSUED
+	// report, not the absence of a draft — and writing to that draft afterwards
+	// would add to a file that says it is closed.
+	if refuseArchivedEngagement(w, project) {
 		return
 	}
 
@@ -376,10 +382,37 @@ func (h *Handler) ExportAuditReport(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// refuseArchivedEngagement is THE check that keeps an archived engagement's
+// file complete, and every audit write that names an engagement goes through
+// it — which is the whole point of it being one function.
+//
+// The archive publishes a manifest with a sha256 per file, and that digest
+// proves only that what is IN the package was not altered. It says nothing
+// about what was added to the engagement afterwards, and an addition leaves no
+// trace in the package at all. A report or a remediation item created after
+// archival makes the卷宗 quietly incomplete, which is worse than a detectable
+// edit: "is this the whole file?" is the question an archive exists to answer.
+//
+// Placed on the loaders rather than in each handler for the reason the review
+// gate is placed on the write helpers (see audit_review_gate.go): a check per
+// handler is a check the next handler forgets.
+func refuseArchivedEngagement(w http.ResponseWriter, project db.Project) bool {
+	if !project.AuditArchivedAt.Valid {
+		return false
+	}
+	writeErrorCode(w, http.StatusConflict, "engagement_archived",
+		"this engagement is archived; its file is closed, and further work belongs to a new engagement")
+	return true
+}
+
 // requireEngagementRank gates the acts that assert something on the audit
 // function's behalf. Workspace admin counts: creating the report is
 // administrative, signing it is not (see internal/auditreport).
-func (h *Handler) requireEngagementRank(w http.ResponseWriter, r *http.Request) (db.Project, db.Member, bool) {
+//
+// allowArchived is true for exactly one caller — archival itself, which is the
+// only write that legitimately names an engagement it is about to close. Its
+// own "already archived" refusal covers a repeat.
+func (h *Handler) requireEngagementRank(w http.ResponseWriter, r *http.Request, allowArchived bool) (db.Project, db.Member, bool) {
 	workspaceID := h.resolveWorkspaceID(r)
 	member, ok := h.requireWorkspaceRole(w, r, workspaceID, "workspace not found", "owner", "admin", "member")
 	if !ok {
@@ -398,6 +431,9 @@ func (h *Handler) requireEngagementRank(w http.ResponseWriter, r *http.Request) 
 	})
 	if err != nil {
 		writeError(w, http.StatusNotFound, "engagement not found")
+		return db.Project{}, db.Member{}, false
+	}
+	if !allowArchived && refuseArchivedEngagement(w, project) {
 		return db.Project{}, db.Member{}, false
 	}
 	if member.Role == "owner" || member.Role == "admin" {
