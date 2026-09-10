@@ -5,10 +5,11 @@ import {
   useAuditMode,
   useCreateAuditCategory,
   useDeleteAuditCategory,
-  useDeleteAuditDocument,
+  useWithdrawAuditDocument,
   useFileAuditDocument,
 } from "@multica/core/audit";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
 import type { AuditCategory, AuditDocument } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
@@ -203,11 +204,24 @@ function DrawerContents({
 
 function DocumentRow({ wsId, doc }: { wsId: string; doc: AuditDocument }) {
   const { t } = useT("issues");
-  const remove = useDeleteAuditDocument(wsId);
+  const withdraw = useWithdrawAuditDocument(wsId);
+  // Collected before the request, not discovered as a refusal: taking evidence
+  // out of the file is an act that has to explain itself.
+  const [reason, setReason] = useState("");
+  const [confirming, setConfirming] = useState(false);
   return (
     <tr className="border-b border-border/60">
       <td className="py-2 pr-4">
-        <a href={doc.url} target="_blank" rel="noreferrer" className="hover:underline">
+        {/* The href is a capability that expires in about a minute, minted when
+            this list was fetched. Opening it late fails rather than serving the
+            document, which is the trade audit material makes: a link that keeps
+            working is a link that keeps working after it leaks. */}
+        <a
+          href={resolvePublicFileUrl(doc.download_url) ?? doc.download_url}
+          target="_blank"
+          rel="noreferrer"
+          className="hover:underline"
+        >
           {doc.title}
         </a>
         {doc.category_path !== "" ? (
@@ -219,19 +233,41 @@ function DocumentRow({ wsId, doc }: { wsId: string; doc: AuditDocument }) {
       <td className="py-2 pr-4 tabular-nums text-muted-foreground">{formatSize(doc.size_bytes)}</td>
       <td className="py-2 pr-4 tabular-nums text-muted-foreground">{doc.created_at.slice(0, 10)}</td>
       <td className="py-2 text-right">
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={remove.isPending}
-          onClick={() =>
-            remove.mutate(doc.id, {
-              onError: (err: unknown) =>
-                toast.error(refusalFallback(err) ?? t(($) => $.audit.library.delete_failed)),
-            })
-          }
-        >
-          {t(($) => $.audit.library.delete)}
-        </Button>
+        {confirming ? (
+          <span className="flex items-center justify-end gap-2">
+            <Input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={t(($) => $.audit.library.withdraw_placeholder)}
+              aria-label={t(($) => $.audit.library.withdraw_reason)}
+              className="w-64"
+            />
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={reason.trim().length === 0 || withdraw.isPending}
+              onClick={() =>
+                withdraw.mutate(
+                  { id: doc.id, reason: reason.trim() },
+                  {
+                    onSuccess: () => setConfirming(false),
+                    onError: (err: unknown) =>
+                      toast.error(refusalFallback(err) ?? t(($) => $.audit.library.withdraw_failed)),
+                  },
+                )
+              }
+            >
+              {t(($) => $.audit.library.withdraw_confirm)}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+              {t(($) => $.audit.library.withdraw_cancel)}
+            </Button>
+          </span>
+        ) : (
+          <Button size="sm" variant="ghost" onClick={() => setConfirming(true)}>
+            {t(($) => $.audit.library.withdraw)}
+          </Button>
+        )}
       </td>
     </tr>
   );

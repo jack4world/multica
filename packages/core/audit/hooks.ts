@@ -270,11 +270,17 @@ export function useFileAuditDocument(wsId: string) {
   });
 }
 
-/** Remove filed material. People only; the server refuses an agent. */
-export function useDeleteAuditDocument(wsId: string) {
+/**
+ * Withdraw filed material, with the reason that goes into the trail.
+ *
+ * People only, owner/admin only, and never silent: 审计资料 is the evidence,
+ * and taking a piece of it out of the file is itself an auditable act.
+ */
+export function useWithdrawAuditDocument(wsId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.deleteAuditDocument(id),
+    mutationFn: (input: { id: string; reason: string }) =>
+      api.withdrawAuditDocument(input.id, input.reason),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: auditKeys.all(wsId) });
     },

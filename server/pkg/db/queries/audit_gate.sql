@@ -199,6 +199,7 @@ WHERE workspace_id = $1 AND path LIKE sqlc.arg('descendant_pattern')::text;
 -- has to ask: orphaning material by tidying the tree is silent.
 SELECT COUNT(*)::bigint FROM audit_document
 WHERE workspace_id = $1
+  AND withdrawn_at IS NULL
   AND (category_path = sqlc.arg('path')::text
        OR category_path LIKE sqlc.arg('descendant_pattern')::text);
 
@@ -225,6 +226,7 @@ SELECT d.*, a.filename, a.url, a.content_type, a.size_bytes
 FROM audit_document d
 JOIN attachment a ON a.id = d.attachment_id
 WHERE d.workspace_id = $1
+  AND d.withdrawn_at IS NULL
   AND (d.category_path = sqlc.arg('path')::text
        OR d.category_path LIKE sqlc.arg('descendant_pattern')::text)
 ORDER BY d.category_path ASC, d.created_at DESC
@@ -241,8 +243,19 @@ SET category_path = sqlc.arg('category_path')::text,
 WHERE id = sqlc.arg('id')::uuid AND workspace_id = sqlc.arg('workspace_id')::uuid
 RETURNING *;
 
--- name: DeleteAuditDocument :execrows
-DELETE FROM audit_document WHERE id = $1 AND workspace_id = $2;
+-- name: WithdrawAuditDocument :one
+-- Withdrawn, not deleted: the row stays so the file can say the document was
+-- here and why it went. Already-withdrawn rows are left alone, so a second
+-- withdrawal cannot overwrite who took it down or why.
+UPDATE audit_document
+SET withdrawn_at = now(),
+    withdrawn_by = sqlc.arg('withdrawn_by')::uuid,
+    withdrawal_reason = sqlc.arg('withdrawal_reason')::text,
+    updated_at = now()
+WHERE id = sqlc.arg('id')::uuid
+  AND workspace_id = sqlc.arg('workspace_id')::uuid
+  AND withdrawn_at IS NULL
+RETURNING *;
 
 -- name: ListWorkpapersForArchive :many
 -- Every workpaper in the engagement, with the audit-only facts that make "who

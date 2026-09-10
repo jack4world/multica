@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -15,6 +16,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/dbid"
 )
 
 // The auditee's document library.
@@ -50,7 +52,22 @@ type AuditDocumentResponse struct {
 	Title        string `json:"title"`
 	AttachmentID string `json:"attachment_id"`
 	Filename     string `json:"filename"`
-	URL          string `json:"url"`
+	// DownloadURL is a SHORT-LIVED SIGNED capability, not the storage URL.
+	//
+	// The raw storage URL used to be handed out here. On a local-storage
+	// deployment /uploads/* is served on the root router, outside the auth
+	// middleware, with no workspace check — so anyone holding that URL could
+	// fetch an auditee's voucher, contract or bank statement with no session at
+	// all. The platform accepts that trade-off for ordinary attachments (an
+	// unguessable URL IS the credential, see MUL-5292); audit material does not
+	// get to make that trade, because the URL travels through browser history,
+	// referrers, proxy logs and corporate inspection appliances, and it never
+	// expires.
+	//
+	// A capability minted per read expires in a minute. What is left is the
+	// platform-level /uploads/* route itself, which is a product-wide decision
+	// and deliberately not changed from inside this vertical.
+	DownloadURL  string `json:"download_url"`
 	ContentType  string `json:"content_type"`
 	SizeBytes    int64  `json:"size_bytes"`
 	UploaderType string `json:"uploader_type"`
@@ -304,7 +321,9 @@ func (h *Handler) FileAuditDocument(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, AuditDocumentResponse{
 		ID: uuidToString(row.ID), CategoryPath: row.CategoryPath, Title: row.Title,
 		AttachmentID: uuidToString(row.AttachmentID),
-		Filename:     att.Filename, URL: att.Url, ContentType: att.ContentType, SizeBytes: att.SizeBytes,
+		Filename:     att.Filename,
+		DownloadURL:  attachmentDownloadCapabilityPath(uuidToString(row.AttachmentID), time.Now()),
+		ContentType:  att.ContentType, SizeBytes: att.SizeBytes,
 		UploaderType: row.UploaderType, UploaderID: uuidToString(row.UploaderID),
 		CreatedAt: timestampToString(row.CreatedAt),
 	})
@@ -354,8 +373,9 @@ func (h *Handler) ListAuditDocuments(w http.ResponseWriter, r *http.Request) {
 		resp = append(resp, AuditDocumentResponse{
 			ID: uuidToString(row.ID), CategoryPath: row.CategoryPath, Title: row.Title,
 			AttachmentID: uuidToString(row.AttachmentID),
-			Filename:     row.Filename, URL: row.Url,
-			ContentType: row.ContentType, SizeBytes: row.SizeBytes,
+			Filename:     row.Filename,
+			DownloadURL:  attachmentDownloadCapabilityPath(uuidToString(row.AttachmentID), time.Now()),
+			ContentType:  row.ContentType, SizeBytes: row.SizeBytes,
 			UploaderType: row.UploaderType, UploaderID: uuidToString(row.UploaderID),
 			CreatedAt: timestampToString(row.CreatedAt),
 		})
@@ -368,12 +388,41 @@ func (h *Handler) ListAuditDocuments(w http.ResponseWriter, r *http.Request) {
 // People only. An agent may read the library and cite from it; material leaving
 // the file is exactly as accountable as material entering it, and an agent
 // cannot be held to that.
+// WithdrawAuditDocumentRequest takes a document out of the library.
+type WithdrawAuditDocumentRequest struct {
+	// Reason is required. Audit practice is 撤下并注明原因; a withdrawal with no
+	// reason is indistinguishable from material going missing.
+	Reason string `json:"reason"`
+}
+
+// DeleteAuditDocument WITHDRAWS a document. It does not delete it.
+//
+// 审计资料 is the evidence the conclusions rest on. This used to be a hard
+// DELETE any workspace member could perform, writing nothing anywhere — the one
+// hole an append-only trail cannot cover, because what was never recorded needs
+// no altering. A document removed before archival left a complete-looking
+// 卷宗, a matching sha256 and a clean trail, and nothing at all to say it had
+// existed.
+//
+// Three changes, and each closes a different half of that:
+//   - the row survives, marked withdrawn, so the library can say what was here
+//   - a trail entry records who took it down and why, in the append-only log
+//     the daily export copies out of the database
+//   - it takes owner/admin, the same bar as removing a drawer. The gradient was
+//     inverted: changing a remediation item's status needed a rank and left a
+//     trail, while destroying an original voucher needed neither.
 func (h *Handler) DeleteAuditDocument(w http.ResponseWriter, r *http.Request) {
-	member, workspaceID, ok := h.requireAuditeeMember(w, r)
+	workspaceID := h.resolveWorkspaceID(r)
+	member, ok := h.requireWorkspaceRole(w, r, workspaceID, "workspace not found", "owner", "admin")
 	if !ok {
 		return
 	}
-	if actorType, _ := h.resolveActor(r, uuidToString(member.UserID), workspaceID); actorType == "agent" {
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+	actorType, _ := h.resolveActor(r, userID, workspaceID)
+	if actorType == "agent" {
 		writeError(w, http.StatusForbidden, "agents cannot remove material from the audit file")
 		return
 	}
@@ -385,20 +434,70 @@ func (h *Handler) DeleteAuditDocument(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	affected, err := h.Queries.DeleteAuditDocument(r.Context(), db.DeleteAuditDocumentParams{
-		ID: idUUID, WorkspaceID: wsUUID,
+	var req WithdrawAuditDocumentRequest
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+	reason := strings.TrimSpace(req.Reason)
+	if reason == "" {
+		writeErrorCode(w, http.StatusBadRequest, "reason_required",
+			"say why this document is being withdrawn; material that leaves the file with no reason is indistinguishable from material going missing")
+		return
+	}
+
+	tx, err := h.TxStarter.Begin(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start transaction")
+		return
+	}
+	defer tx.Rollback(r.Context())
+	qtx := h.Queries.WithTx(tx)
+
+	doc, err := qtx.WithdrawAuditDocument(r.Context(), db.WithdrawAuditDocumentParams{
+		ID:               idUUID,
+		WorkspaceID:      wsUUID,
+		WithdrawnBy:      member.UserID,
+		WithdrawalReason: reason,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			// Either it does not exist here, or it is already withdrawn. Both
+			// are "not in the library", and neither reveals more than that.
 			writeError(w, http.StatusNotFound, "document not found")
 			return
 		}
-		slog.Warn("DeleteAuditDocument failed", append(logger.RequestAttrs(r), "error", err)...)
-		writeError(w, http.StatusInternalServerError, "failed to delete the document")
+		slog.Warn("WithdrawAuditDocument failed", append(logger.RequestAttrs(r), "error", err)...)
+		writeError(w, http.StatusInternalServerError, "failed to withdraw the document")
 		return
 	}
-	if affected == 0 {
-		writeError(w, http.StatusNotFound, "document not found")
+
+	// In the SAME transaction: a withdrawal that committed without its record
+	// would be exactly the silent removal this is here to end.
+	details, err := json.Marshal(map[string]any{
+		"document_id":   uuidToString(doc.ID),
+		"attachment_id": uuidToString(doc.AttachmentID),
+		"category_path": doc.CategoryPath,
+		"title":         doc.Title,
+		"reason":        reason,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to record the withdrawal")
+		return
+	}
+	if _, err := qtx.CreateActivity(r.Context(), db.CreateActivityParams{
+		ID:          dbid.NewV7(),
+		WorkspaceID: wsUUID,
+		ActorType:   pgtype.Text{String: actorType, Valid: actorType != ""},
+		ActorID:     parseUUID(userID),
+		Action:      "audit_document_withdrawn",
+		Details:     details,
+	}); err != nil {
+		slog.Warn("withdrawal trail failed", append(logger.RequestAttrs(r), "error", err)...)
+		writeError(w, http.StatusInternalServerError, "failed to record the withdrawal")
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to withdraw the document")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

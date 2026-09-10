@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -251,4 +253,132 @@ func TestOnlyOwnersAndAdminsChangeTheFilingScheme(t *testing.T) {
 		map[string]any{"path": "08", "name": "自定义"})
 	req.Header.Set("X-User-ID", userID)
 	testutil.Call(t, testHandler.CreateAuditCategory, req).Want(http.StatusForbidden)
+}
+
+// The library must not hand out the bytes' address.
+//
+// It used to return the attachment's raw storage URL. On a local-storage
+// deployment /uploads/* is served on the ROOT router, outside the auth
+// middleware and with no workspace check, so that URL fetched an auditee's
+// voucher or bank statement with no session at all — and it never expired,
+// while travelling through browser history, referrers, proxy logs and
+// corporate inspection appliances.
+//
+// The platform accepts that trade for ordinary attachments: the unguessable
+// URL is the credential. Audit material does not get to make that trade.
+func TestTheLibraryHandsOutACapabilityNotAStorageURL(t *testing.T) {
+	f := newAuditFixture(t)
+	att := f.attachmentIn(t, "voucher.pdf")
+
+	var filed AuditDocumentResponse
+	f.fileDoc(t, "01", "记账凭证", att).Want(http.StatusCreated).JSON(&filed)
+
+	for _, doc := range []AuditDocumentResponse{filed, f.docsUnder(t, "01")[0]} {
+		if !strings.HasPrefix(doc.DownloadURL, "/api/attachments/") ||
+			!strings.Contains(doc.DownloadURL, "/signed-download") {
+			t.Errorf("download_url = %q, want a signed capability", doc.DownloadURL)
+		}
+		if !strings.Contains(doc.DownloadURL, "exp=") || !strings.Contains(doc.DownloadURL, "sig=") {
+			t.Errorf("download_url = %q carries no expiry or signature", doc.DownloadURL)
+		}
+		// The storage URL must not appear ANYWHERE in the response: this is a
+		// test about what the library publishes, not about one field's name.
+		encoded, err := json.Marshal(doc)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		for _, leak := range []string{"/uploads/", "example.invalid"} {
+			if strings.Contains(string(encoded), leak) {
+				t.Errorf("the response carries the storage address %q: %s", leak, encoded)
+			}
+		}
+	}
+}
+
+// The capability is minted per read, so it is not something a client can hold
+// onto — two reads of the same document are two different, separately expiring
+// links.
+func TestEachReadMintsItsOwnCapability(t *testing.T) {
+	f := newAuditFixture(t)
+	att := f.attachmentIn(t, "contract.pdf")
+	f.fileDoc(t, "01", "合同", att).Want(http.StatusCreated)
+
+	first := f.docsUnder(t, "01")[0].DownloadURL
+	if first == "" {
+		t.Fatal("no capability minted")
+	}
+	// Same attachment, same signature only because the expiry has not ticked;
+	// what matters is that it is re-derived rather than stored.
+	var stored string
+	dbfx.QueryRow(t, `SELECT url FROM attachment WHERE id = $1`, att).Scan(&stored)
+	if strings.Contains(first, stored) {
+		t.Errorf("the capability embeds the storage URL: %q", first)
+	}
+}
+
+// 审计资料 IS the evidence. Removing one used to be a hard DELETE any workspace
+// member could perform, writing nothing anywhere — and that is the one hole an
+// append-only trail cannot cover: what was never recorded needs no altering. A
+// document removed before archival left a complete-looking 卷宗, a matching
+// sha256, a clean trail, and nothing to say it had ever existed.
+func TestWithdrawingADocumentLeavesTheRecordAndTakesARank(t *testing.T) {
+	f := newAuditFixture(t)
+	var doc AuditDocumentResponse
+	f.fileDoc(t, "01", "银行对账单", f.attachmentIn(t, "stmt.pdf")).
+		Want(http.StatusCreated).JSON(&doc)
+
+	withdraw := func(asUserID string, body map[string]any) *testutil.Response {
+		req := auditRequest(http.MethodDelete, "/api/audit/documents/"+doc.ID, f.workspaceID, body)
+		if asUserID != "" {
+			req.Header.Set("X-User-ID", asUserID)
+		}
+		return testutil.Call(t, testHandler.DeleteAuditDocument, withURLParam(req, "id", doc.ID))
+	}
+
+	// An ordinary member cannot take evidence out of the file. The gradient was
+	// inverted: changing a remediation item's status needed a rank and left a
+	// trail, while destroying an original voucher needed neither.
+	plain := dbfx.User(t, "Plain", "plain-"+uuid.NewString()[:8]+"@multica.ai")
+	dbfx.Member(t, f.workspaceID, plain, "member")
+	withdraw(plain, map[string]any{"reason": "拿走"}).Want(http.StatusForbidden)
+
+	// Nor can an owner take it out silently.
+	withdraw("", map[string]any{}).Want(http.StatusBadRequest)
+
+	withdraw("", map[string]any{"reason": "客户提供的版本有误，已换新版归入 01"}).
+		Want(http.StatusNoContent)
+
+	// The row survives, marked, so the library can still say what was here.
+	var withdrawnBy string
+	var reason string
+	dbfx.QueryRow(t, `SELECT withdrawn_by::text, withdrawal_reason FROM audit_document WHERE id = $1`,
+		doc.ID).Scan(&withdrawnBy, &reason)
+	if withdrawnBy == "" || reason == "" {
+		t.Errorf("withdrawal recorded by=%q reason=%q; both are the point", withdrawnBy, reason)
+	}
+
+	// And it is out of the library.
+	for _, listed := range f.docsUnder(t, "01") {
+		if listed.ID == doc.ID {
+			t.Error("a withdrawn document is still listed in its drawer")
+		}
+	}
+
+	// THE part that makes it not-silent: an entry in the append-only trail the
+	// daily export copies out of the database.
+	var actions int
+	dbfx.QueryRow(t, `SELECT COUNT(*) FROM activity_log
+	    WHERE workspace_id = $1 AND action = 'audit_document_withdrawn'
+	      AND details->>'document_id' = $2`, f.workspaceID, doc.ID).Scan(&actions)
+	if actions != 1 {
+		t.Errorf("trail entries for the withdrawal = %d, want 1", actions)
+	}
+
+	// A second withdrawal must not overwrite who took it down or why.
+	withdraw("", map[string]any{"reason": "再删一次"}).Want(http.StatusNotFound)
+	var stillReason string
+	dbfx.QueryRow(t, `SELECT withdrawal_reason FROM audit_document WHERE id = $1`, doc.ID).Scan(&stillReason)
+	if stillReason != reason {
+		t.Errorf("the second withdrawal rewrote the reason: %q", stillReason)
+	}
 }

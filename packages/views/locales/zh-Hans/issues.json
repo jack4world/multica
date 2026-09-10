@@ -1039,7 +1039,13 @@
       "new_category_add": "新增",
       "new_category_failed": "新增类目没能完成。",
       "delete_category": "删除类目",
-      "delete_category_failed": "类目下还有资料或子类目，先清空再删。"
+      "delete_category_failed": "类目下还有资料或子类目，先清空再删。",
+      "withdraw": "撤下",
+      "withdraw_reason": "撤下原因",
+      "withdraw_placeholder": "为什么撤下这份资料？",
+      "withdraw_confirm": "确认撤下",
+      "withdraw_cancel": "取消",
+      "withdraw_failed": "撤下没能完成。"
     }
   }
 }

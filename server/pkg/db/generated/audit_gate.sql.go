@@ -33,6 +33,7 @@ func (q *Queries) CountCategoryChildren(ctx context.Context, arg CountCategoryCh
 const countDocumentsUnderCategory = `-- name: CountDocumentsUnderCategory :one
 SELECT COUNT(*)::bigint FROM audit_document
 WHERE workspace_id = $1
+  AND withdrawn_at IS NULL
   AND (category_path = $2::text
        OR category_path LIKE $3::text)
 `
@@ -104,7 +105,7 @@ VALUES (
     $5::text,
     $6::uuid
 )
-RETURNING id, workspace_id, attachment_id, category_path, title, uploader_type, uploader_id, created_at, updated_at
+RETURNING id, workspace_id, attachment_id, category_path, title, uploader_type, uploader_id, created_at, updated_at, withdrawn_at, withdrawn_by, withdrawal_reason
 `
 
 type CreateAuditDocumentParams struct {
@@ -136,6 +137,9 @@ func (q *Queries) CreateAuditDocument(ctx context.Context, arg CreateAuditDocume
 		&i.UploaderID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WithdrawnAt,
+		&i.WithdrawnBy,
+		&i.WithdrawalReason,
 	)
 	return i, err
 }
@@ -177,23 +181,6 @@ func (q *Queries) CreateAuditDocumentCategory(ctx context.Context, arg CreateAud
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const deleteAuditDocument = `-- name: DeleteAuditDocument :execrows
-DELETE FROM audit_document WHERE id = $1 AND workspace_id = $2
-`
-
-type DeleteAuditDocumentParams struct {
-	ID          pgtype.UUID `json:"id"`
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
-}
-
-func (q *Queries) DeleteAuditDocument(ctx context.Context, arg DeleteAuditDocumentParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteAuditDocument, arg.ID, arg.WorkspaceID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const deleteAuditDocumentCategory = `-- name: DeleteAuditDocumentCategory :execrows
@@ -262,7 +249,7 @@ func (q *Queries) DeleteWorkpaperRecord(ctx context.Context, issueID pgtype.UUID
 }
 
 const getAuditDocument = `-- name: GetAuditDocument :one
-SELECT id, workspace_id, attachment_id, category_path, title, uploader_type, uploader_id, created_at, updated_at FROM audit_document WHERE id = $1 AND workspace_id = $2
+SELECT id, workspace_id, attachment_id, category_path, title, uploader_type, uploader_id, created_at, updated_at, withdrawn_at, withdrawn_by, withdrawal_reason FROM audit_document WHERE id = $1 AND workspace_id = $2
 `
 
 type GetAuditDocumentParams struct {
@@ -283,6 +270,9 @@ func (q *Queries) GetAuditDocument(ctx context.Context, arg GetAuditDocumentPara
 		&i.UploaderID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WithdrawnAt,
+		&i.WithdrawnBy,
+		&i.WithdrawalReason,
 	)
 	return i, err
 }
@@ -470,10 +460,11 @@ func (q *Queries) ListAuditDocumentCategories(ctx context.Context, workspaceID p
 }
 
 const listAuditDocumentsUnderCategory = `-- name: ListAuditDocumentsUnderCategory :many
-SELECT d.id, d.workspace_id, d.attachment_id, d.category_path, d.title, d.uploader_type, d.uploader_id, d.created_at, d.updated_at, a.filename, a.url, a.content_type, a.size_bytes
+SELECT d.id, d.workspace_id, d.attachment_id, d.category_path, d.title, d.uploader_type, d.uploader_id, d.created_at, d.updated_at, d.withdrawn_at, d.withdrawn_by, d.withdrawal_reason, a.filename, a.url, a.content_type, a.size_bytes
 FROM audit_document d
 JOIN attachment a ON a.id = d.attachment_id
 WHERE d.workspace_id = $1
+  AND d.withdrawn_at IS NULL
   AND (d.category_path = $2::text
        OR d.category_path LIKE $3::text)
 ORDER BY d.category_path ASC, d.created_at DESC
@@ -488,19 +479,22 @@ type ListAuditDocumentsUnderCategoryParams struct {
 }
 
 type ListAuditDocumentsUnderCategoryRow struct {
-	ID           pgtype.UUID        `json:"id"`
-	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
-	AttachmentID pgtype.UUID        `json:"attachment_id"`
-	CategoryPath string             `json:"category_path"`
-	Title        string             `json:"title"`
-	UploaderType string             `json:"uploader_type"`
-	UploaderID   pgtype.UUID        `json:"uploader_id"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	Filename     string             `json:"filename"`
-	Url          string             `json:"url"`
-	ContentType  string             `json:"content_type"`
-	SizeBytes    int64              `json:"size_bytes"`
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	AttachmentID     pgtype.UUID        `json:"attachment_id"`
+	CategoryPath     string             `json:"category_path"`
+	Title            string             `json:"title"`
+	UploaderType     string             `json:"uploader_type"`
+	UploaderID       pgtype.UUID        `json:"uploader_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	WithdrawnAt      pgtype.Timestamptz `json:"withdrawn_at"`
+	WithdrawnBy      pgtype.UUID        `json:"withdrawn_by"`
+	WithdrawalReason pgtype.Text        `json:"withdrawal_reason"`
+	Filename         string             `json:"filename"`
+	Url              string             `json:"url"`
+	ContentType      string             `json:"content_type"`
+	SizeBytes        int64              `json:"size_bytes"`
 }
 
 // Asking for a parent returns everything beneath it at any depth: an auditor
@@ -529,6 +523,9 @@ func (q *Queries) ListAuditDocumentsUnderCategory(ctx context.Context, arg ListA
 			&i.UploaderID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WithdrawnAt,
+			&i.WithdrawnBy,
+			&i.WithdrawalReason,
 			&i.Filename,
 			&i.Url,
 			&i.ContentType,
@@ -1119,7 +1116,7 @@ SET category_path = $1::text,
     title = COALESCE($2, title),
     updated_at = now()
 WHERE id = $3::uuid AND workspace_id = $4::uuid
-RETURNING id, workspace_id, attachment_id, category_path, title, uploader_type, uploader_id, created_at, updated_at
+RETURNING id, workspace_id, attachment_id, category_path, title, uploader_type, uploader_id, created_at, updated_at, withdrawn_at, withdrawn_by, withdrawal_reason
 `
 
 type MoveAuditDocumentParams struct {
@@ -1147,6 +1144,9 @@ func (q *Queries) MoveAuditDocument(ctx context.Context, arg MoveAuditDocumentPa
 		&i.UploaderID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WithdrawnAt,
+		&i.WithdrawnBy,
+		&i.WithdrawalReason,
 	)
 	return i, err
 }
@@ -1254,6 +1254,53 @@ func (q *Queries) SetAuditRole(ctx context.Context, arg SetAuditRoleParams) (Aud
 		&i.Level,
 		&i.CreatedAt,
 		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const withdrawAuditDocument = `-- name: WithdrawAuditDocument :one
+UPDATE audit_document
+SET withdrawn_at = now(),
+    withdrawn_by = $1::uuid,
+    withdrawal_reason = $2::text,
+    updated_at = now()
+WHERE id = $3::uuid
+  AND workspace_id = $4::uuid
+  AND withdrawn_at IS NULL
+RETURNING id, workspace_id, attachment_id, category_path, title, uploader_type, uploader_id, created_at, updated_at, withdrawn_at, withdrawn_by, withdrawal_reason
+`
+
+type WithdrawAuditDocumentParams struct {
+	WithdrawnBy      pgtype.UUID `json:"withdrawn_by"`
+	WithdrawalReason string      `json:"withdrawal_reason"`
+	ID               pgtype.UUID `json:"id"`
+	WorkspaceID      pgtype.UUID `json:"workspace_id"`
+}
+
+// Withdrawn, not deleted: the row stays so the file can say the document was
+// here and why it went. Already-withdrawn rows are left alone, so a second
+// withdrawal cannot overwrite who took it down or why.
+func (q *Queries) WithdrawAuditDocument(ctx context.Context, arg WithdrawAuditDocumentParams) (AuditDocument, error) {
+	row := q.db.QueryRow(ctx, withdrawAuditDocument,
+		arg.WithdrawnBy,
+		arg.WithdrawalReason,
+		arg.ID,
+		arg.WorkspaceID,
+	)
+	var i AuditDocument
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.AttachmentID,
+		&i.CategoryPath,
+		&i.Title,
+		&i.UploaderType,
+		&i.UploaderID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WithdrawnAt,
+		&i.WithdrawnBy,
+		&i.WithdrawalReason,
 	)
 	return i, err
 }

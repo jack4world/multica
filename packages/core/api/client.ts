@@ -3887,8 +3887,19 @@ export class ApiClient {
     });
   }
 
-  async deleteAuditDocument(id: string): Promise<void> {
-    await this.fetch<void>(`/api/audit/documents/${id}`, { method: "DELETE" });
+  /**
+   * Withdraw a document from the library.
+   *
+   * Not a delete: the row survives marked as withdrawn and the reason goes into
+   * the audit trail. The reason is required by the server — material that
+   * leaves the file with no reason is indistinguishable from material going
+   * missing.
+   */
+  async withdrawAuditDocument(id: string, reason: string): Promise<void> {
+    await this.fetch<void>(`/api/audit/documents/${id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ reason }),
+    });
   }
 
   async getAuditMode(): Promise<AuditMode> {

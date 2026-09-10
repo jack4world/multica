@@ -164,7 +164,12 @@ export interface AuditDocument {
   title: string;
   attachment_id: string;
   filename: string;
-  url: string;
+  /**
+   * A short-lived signed download capability (~1 minute), minted by the server
+   * on every read. NOT a storage URL: do not cache it, persist it, or paste it
+   * anywhere — the whole point is that it stops working.
+   */
+  download_url: string;
   content_type: string;
   size_bytes: number;
   uploader_type: string;

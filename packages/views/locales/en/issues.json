@@ -1069,7 +1069,13 @@
       "new_category_add": "Add",
       "new_category_failed": "The drawer could not be added.",
       "delete_category": "Remove drawer",
-      "delete_category_failed": "The drawer still holds material or sub-drawers. Empty it first."
+      "delete_category_failed": "The drawer still holds material or sub-drawers. Empty it first.",
+      "withdraw": "Withdraw",
+      "withdraw_reason": "Why",
+      "withdraw_placeholder": "Why is this being withdrawn?",
+      "withdraw_confirm": "Withdraw",
+      "withdraw_cancel": "Cancel",
+      "withdraw_failed": "The withdrawal did not complete."
     }
   }
 }

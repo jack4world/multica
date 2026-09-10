@@ -31,6 +31,10 @@ workpaper's own supporting scan is not one of these: it is an attachment on that
 workpaper, where the test it supports is. Vouchers, policy documents and contracts are categories of it, not separate kinds. Uses a platform attachment as its binary carrier.
 _Avoid_: 附件, 凭证 (a voucher is one category of document, not a synonym)
 
+**撤下 (Withdrawal)**:
+Taking a piece of 审计资料 out of the file, with a reason, leaving a record that it was there. Not a deletion: material that vanishes without trace is indistinguishable from material that was never filed, and an append-only trail cannot protect what was never written to it.
+_Avoid_: 删除, 移除, delete
+
 ### People
 
 **编制人 (Preparer)**:

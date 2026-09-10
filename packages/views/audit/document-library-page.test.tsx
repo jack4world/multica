@@ -26,7 +26,7 @@ function document(over: Partial<AuditDocument> = {}): AuditDocument {
     title: "采购管理办法",
     attachment_id: "a-1",
     filename: "purchasing.pdf",
-    url: "https://example.test/purchasing.pdf",
+    download_url: "/api/attachments/a-1/signed-download?exp=1&sig=abc&dl=1",
     content_type: "application/pdf",
     size_bytes: 2 * 1024 * 1024,
     uploader_type: "member",
@@ -46,10 +46,16 @@ vi.mock("@multica/core/audit", () => ({
   useCreateAuditCategory: () => ({ mutate: createCategory, isPending: false }),
   useDeleteAuditCategory: () => ({ mutate: vi.fn(), isPending: false }),
   useFileAuditDocument: () => ({ mutate: fileDocument, isPending: false }),
-  useDeleteAuditDocument: () => ({ mutate: removeDocument, isPending: false }),
+  useWithdrawAuditDocument: () => ({ mutate: removeDocument, isPending: false }),
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
+
+// The download link is a site-relative capability resolved against the API
+// base, the way every other public file URL in the product is.
+vi.mock("@multica/core/workspace/avatar-url", () => ({
+  resolvePublicFileUrl: (url: string) => `https://api.test${url}`,
+}));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("../i18n", () => ({
   useT: () => ({ t: (accessor: (dict: unknown) => string) => accessor(zh) }),
@@ -90,6 +96,40 @@ describe("document library", () => {
     categories.mockReturnValue([category()]);
     render(<DocumentLibraryPage />);
     expect(screen.getByText("本类目下还没有资料。")).toBeInTheDocument();
+  });
+
+  it("will not withdraw a document until a reason is typed", () => {
+    categories.mockReturnValue([category()]);
+    documents.mockReturnValue([document()]);
+    render(<DocumentLibraryPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "撤下" }));
+    expect(screen.getByRole("button", { name: "确认撤下" })).toBeDisabled();
+    expect(removeDocument).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("撤下原因"), {
+      target: { value: "客户提供的版本有误" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "确认撤下" }));
+    expect(removeDocument).toHaveBeenCalledWith(
+      { id: "doc-1", reason: "客户提供的版本有误" },
+      expect.anything(),
+    );
+  });
+
+  it("links through a signed capability, never the storage address", () => {
+    categories.mockReturnValue([category()]);
+    documents.mockReturnValue([document()]);
+    render(<DocumentLibraryPage />);
+    const link = screen.getByRole("link", { name: "采购管理办法" });
+    // The href must carry the capability, and nothing on the page may carry the
+    // bytes' own address: on a local-storage deployment that URL needs no
+    // session at all.
+    expect(link).toHaveAttribute(
+      "href",
+      "https://api.test/api/attachments/a-1/signed-download?exp=1&sig=abc&dl=1",
+    );
+    expect(globalThis.document.body.innerHTML).not.toContain("/uploads/");
   });
 
   it("renders sizes people can read", () => {
