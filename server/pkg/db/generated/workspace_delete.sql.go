@@ -255,6 +255,12 @@ deleted_audit_documents AS (
 ),
 deleted_audit_document_categories AS (
     DELETE FROM audit_document_category WHERE audit_document_category.workspace_id = $1
+),
+deleted_audit_remediations AS (
+    DELETE FROM audit_remediation WHERE audit_remediation.workspace_id = $1
+),
+deleted_audit_departments AS (
+    DELETE FROM audit_department WHERE audit_department.workspace_id = $1
 )
 DELETE FROM quick_action WHERE quick_action.workspace_id = $1
 `
@@ -264,6 +270,9 @@ DELETE FROM quick_action WHERE quick_action.workspace_id = $1
 // ranks to an engagement, and both die with the workspace that held them.
 // The document library. The rows go; the attachments they point at are swept
 // by the attachment teardown, which owns the bytes.
+// The 整改台账. The items themselves are issues and die with the issue
+// teardown; these rows are what audit knew about them, and the department list
+// is the auditee's own.
 func (q *Queries) DeleteWorkspaceIssueRoots(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceIssueRoots, workspaceID)
 	return err

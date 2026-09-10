@@ -78,6 +78,29 @@ const (
 	StatusFiled = "filed"
 )
 
+// The remediation chain. A 整改事项 is an issue that belongs to no engagement,
+// so it never meets the review chain above and has its own.
+//
+// SEPARATE FROM THE REVIEW CHAIN, not appended to it. auditgate asks
+// StatusByKey whether a status belongs to the chain it governs; if these keys
+// answered yes, a workpaper moved to 整改中 would be read as a step of the
+// review chain instead of an attempt to leave it. Two chains, two lookups, one
+// catalog.
+const (
+	// StatusRemediating is the responsible person working on the fix. An item
+	// that has not been started is simply in the platform's own backlog —
+	// 待整改 is the item existing, not a state it was put into.
+	StatusRemediating = "remediating"
+	// StatusPendingVerification is the fix submitted and waiting on the audit
+	// function. in_review for the same load-bearing reason as the review chain:
+	// it finalizes an autopilot run and is skipped by the stuck-issue sweeper.
+	StatusPendingVerification = "pending_verification"
+	// StatusRemediationClosed is verified and closed. NOT keyed "closed": the
+	// platform's built-in vocabulary already spends that word, and a status
+	// catalog that answers to two senses of it cannot be read.
+	StatusRemediationClosed = "remediation_closed"
+)
+
 // StatusDef is one row to seed into a workspace's issue status catalog.
 type StatusDef struct {
 	Key string
@@ -175,6 +198,77 @@ func Statuses() []StatusDef {
 			},
 		},
 	}
+}
+
+// RemediationStatuses returns the remediation chain in ledger order.
+func RemediationStatuses() []StatusDef {
+	return []StatusDef{
+		{
+			Key:      StatusRemediating,
+			Category: issuestatus.InProgress,
+			Color:    "#f97316",
+			Names: map[Locale]string{
+				LocaleZhHans: "整改中",
+				LocaleEn:     "Remediating",
+			},
+			Descriptions: map[Locale]string{
+				LocaleZhHans: "责任部门正在整改。",
+				LocaleEn:     "The responsible department is working on the fix.",
+			},
+		},
+		{
+			Key:      StatusPendingVerification,
+			Category: issuestatus.InReview,
+			Color:    "#a855f7",
+			Names: map[Locale]string{
+				LocaleZhHans: "待验证",
+				LocaleEn:     "Pending Verification",
+			},
+			Descriptions: map[Locale]string{
+				LocaleZhHans: "整改已提交，待审计部门验证。",
+				LocaleEn:     "The fix is submitted and waiting on the audit function.",
+			},
+		},
+		{
+			Key:      StatusRemediationClosed,
+			Category: issuestatus.Done,
+			Color:    "#16a34a",
+			Names: map[Locale]string{
+				LocaleZhHans: "已关闭",
+				LocaleEn:     "Closed",
+			},
+			Descriptions: map[Locale]string{
+				LocaleZhHans: "已验证关闭。问题重新出现的，另立新事项，不改本条。",
+				LocaleEn:     "Verified and closed. A problem that recurs is a new item, not an edited closure.",
+			},
+		},
+	}
+}
+
+// SeedStatuses is everything an auditee's catalog gets: both chains.
+func SeedStatuses() []StatusDef {
+	return append(Statuses(), RemediationStatuses()...)
+}
+
+// SeedStatusKeys returns every seeded key, both chains.
+func SeedStatusKeys() []string {
+	defs := SeedStatuses()
+	keys := make([]string, 0, len(defs))
+	for _, s := range defs {
+		keys = append(keys, s.Key)
+	}
+	return keys
+}
+
+// RemediationStatusByKey looks one remediation status up. Deliberately NOT
+// folded into StatusByKey: see the comment on the keys above.
+func RemediationStatusByKey(key string) (StatusDef, bool) {
+	for _, s := range RemediationStatuses() {
+		if s.Key == key {
+			return s, true
+		}
+	}
+	return StatusDef{}, false
 }
 
 // StatusByKey looks one status up in the catalog.

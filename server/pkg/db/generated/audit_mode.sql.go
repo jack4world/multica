@@ -239,3 +239,54 @@ func (q *Queries) SeedAuditIssueStatusEntry(ctx context.Context, arg SeedAuditIs
 	)
 	return err
 }
+
+const seedAuditIssueStatusEntryIfAbsent = `-- name: SeedAuditIssueStatusEntryIfAbsent :exec
+INSERT INTO issue_status (workspace_id, key, name, description, category, color, position)
+SELECT $1::uuid,
+       $2::text,
+       $3::text,
+       $4::text,
+       $5::text,
+       $6::text,
+       COALESCE(
+           (SELECT MAX(position) + 1 FROM issue_status
+            WHERE workspace_id = $1::uuid
+              AND category = $5::text),
+           0
+       )
+WHERE NOT EXISTS (
+    SELECT 1 FROM issue_status
+    WHERE workspace_id = $1::uuid
+      AND key = $2::text
+)
+`
+
+type SeedAuditIssueStatusEntryIfAbsentParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Key         string      `json:"key"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Category    string      `json:"category"`
+	Color       string      `json:"color"`
+}
+
+// Convergent seeding: adds one catalog status only if the workspace does not
+// already have that key.
+//
+// This is what reaches an auditee that was enabled BEFORE a chain existed. The
+// enable path returns early once a workspace is an auditee, so a status added
+// to the catalog later has no other way in — and a chain whose statuses are
+// missing is a feature that silently does not exist for every workspace that
+// adopted the vertical early. Position follows MAX+1 within the category, like
+// every other insert into this table.
+func (q *Queries) SeedAuditIssueStatusEntryIfAbsent(ctx context.Context, arg SeedAuditIssueStatusEntryIfAbsentParams) error {
+	_, err := q.db.Exec(ctx, seedAuditIssueStatusEntryIfAbsent,
+		arg.WorkspaceID,
+		arg.Key,
+		arg.Name,
+		arg.Description,
+		arg.Category,
+		arg.Color,
+	)
+	return err
+}

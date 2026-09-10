@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/auditgate"
+	"github.com/multica-ai/multica/server/internal/remediate"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
@@ -88,6 +89,16 @@ func (g *reviewGate) mayApply() bool {
 	if g == nil {
 		return false
 	}
+	return g.mayApplyReview() || remediate.Governs(g.prev.Status, g.target)
+}
+
+// mayApplyReview reports whether the REVIEW chain could govern this write. A
+// remediation item belongs to no engagement, so it never satisfies this and
+// falls through to the ledger's own gate.
+func (g *reviewGate) mayApplyReview() bool {
+	if g == nil {
+		return false
+	}
 	if !g.prev.ProjectID.Valid && !g.targetProject.Valid {
 		return false
 	}
@@ -104,28 +115,41 @@ func (g *reviewGate) projectChanged() bool {
 	return g.prev.ProjectID != g.targetProject
 }
 
-// reviewGateDenial carries a refusal from the gate back up through the write
-// helpers, which know nothing about audit rules, to the handler that renders it.
-type reviewGateDenial struct {
-	decision auditgate.Decision
+// gateDecision is one chain's answer in the shape the write path needs. Both
+// chains produce it, so the helpers that carry a refusal up to the handler
+// never learn which chain refused.
+//
+// The HTTP status is decided by the chain that made the decision rather than by
+// the renderer: each chain knows which of its own refusals are about WHO is
+// acting and which are about WHAT is being asked, and a renderer switching over
+// two packages' codes would be the place they silently diverge.
+type gateDecision struct {
+	allowed bool
+	code    string
+	reason  string
+	status  int
+	// event is what the trail records, or empty when this write is not a
+	// transition worth recording.
+	event string
+	// recordPreparer asks the caller to snapshot the actor as the workpaper's
+	// preparer as part of the same write.
+	recordPreparer bool
+	// recordLevel is the reviewer rank that acted, for events where one did.
+	recordLevel string
+	// recordVerification asks the caller to write the closure record — who
+	// verified the fix, when, and what they checked — in the same transaction.
+	recordVerification bool
 }
 
-func (e *reviewGateDenial) Error() string { return e.decision.Reason }
-
-// writeReviewGateError renders a gate refusal and reports whether it handled
-// the error.
+// fromReviewDecision translates the review chain's answer.
 //
 // Two shapes, two statuses. A refusal about WHO is acting is 403: the request
 // describes a legal transition that this person may not make. A refusal about
 // WHAT is being asked is 409: the transition itself does not exist, or the
 // workpaper is filed, and no change of identity would help.
-func writeReviewGateError(w http.ResponseWriter, err error) bool {
-	var denial *reviewGateDenial
-	if !errors.As(err, &denial) {
-		return false
-	}
+func fromReviewDecision(d auditgate.Decision) gateDecision {
 	status := http.StatusConflict
-	switch denial.decision.Code {
+	switch d.Code {
 	case auditgate.DenyLevelRequired, auditgate.DenySelfReview, auditgate.DenyAgent:
 		status = http.StatusForbidden
 	case auditgate.DenyReasonRequired:
@@ -133,10 +157,48 @@ func writeReviewGateError(w http.ResponseWriter, err error) bool {
 		// problem: the caller can fix it by sending one.
 		status = http.StatusBadRequest
 	}
+	return gateDecision{
+		allowed: d.Allowed, code: string(d.Code), reason: d.Reason, status: status,
+		event: string(d.Event), recordPreparer: d.RecordPreparer, recordLevel: string(d.RecordLevel),
+	}
+}
+
+// fromRemediationDecision translates the ledger's answer, by the same rule.
+func fromRemediationDecision(d remediate.Decision) gateDecision {
+	status := http.StatusConflict
+	switch d.Code {
+	case remediate.DenyVerifierRequired, remediate.DenySelfVerification,
+		remediate.DenyNotResponsible, remediate.DenyAgent:
+		status = http.StatusForbidden
+	case remediate.DenyNoteRequired:
+		status = http.StatusBadRequest
+	}
+	return gateDecision{
+		allowed: d.Allowed, code: string(d.Code), reason: d.Reason, status: status,
+		event:              string(d.Event),
+		recordVerification: d.Event == remediate.EventVerified,
+	}
+}
+
+// reviewGateDenial carries a refusal from the gate back up through the write
+// helpers, which know nothing about audit rules, to the handler that renders it.
+type reviewGateDenial struct {
+	decision gateDecision
+}
+
+func (e *reviewGateDenial) Error() string { return e.decision.reason }
+
+// writeReviewGateError renders a gate refusal and reports whether it handled
+// the error.
+func writeReviewGateError(w http.ResponseWriter, err error) bool {
+	var denial *reviewGateDenial
+	if !errors.As(err, &denial) {
+		return false
+	}
 	// The CODE, not just the sentence. The client maps it to copy in the
 	// reader's language; without it a Chinese-locale auditor is shown an
 	// English sentence naming a machine identifier they have never seen.
-	writeErrorCode(w, status, string(denial.decision.Code), denial.decision.Reason)
+	writeErrorCode(w, denial.decision.status, denial.decision.code, denial.decision.reason)
 	return true
 }
 
@@ -154,10 +216,10 @@ func (h *Handler) enforceReviewGate(ctx context.Context, q *db.Queries, g *revie
 	if !applies {
 		return nil
 	}
-	if !decision.Allowed {
+	if !decision.allowed {
 		return &reviewGateDenial{decision: decision}
 	}
-	if decision.RecordPreparer {
+	if decision.recordPreparer {
 		if err := q.RecordWorkpaperPreparer(ctx, db.RecordWorkpaperPreparerParams{
 			IssueID:     g.prev.ID,
 			WorkspaceID: g.prev.WorkspaceID,
@@ -166,10 +228,23 @@ func (h *Handler) enforceReviewGate(ctx context.Context, q *db.Queries, g *revie
 			return err
 		}
 	}
+	// The closure record and the status that says the item is closed are one
+	// write. An item that reads as closed with nobody recorded as having closed
+	// it is the exact hole the ledger exists to fill.
+	if decision.recordVerification {
+		if err := q.RecordRemediationVerification(ctx, db.RecordRemediationVerificationParams{
+			IssueID:          g.prev.ID,
+			WorkspaceID:      g.prev.WorkspaceID,
+			VerifiedBy:       actingMemberID,
+			VerificationNote: strings.TrimSpace(g.reason),
+		}); err != nil {
+			return err
+		}
+	}
 	if err := h.recordAuditTrail(ctx, q, g, decided, decision); err != nil {
 		return err
 	}
-	g.recordedTrail = decision.Event != ""
+	g.recordedTrail = decision.event != ""
 	return nil
 }
 
@@ -182,8 +257,8 @@ func (h *Handler) enforceReviewGate(ctx context.Context, q *db.Queries, g *revie
 // audit record, because a workpaper could be filed with nothing saying so and
 // nobody told. Here the record and the change share a fate: a failure to write
 // the trail fails the transition.
-func (h *Handler) recordAuditTrail(ctx context.Context, q *db.Queries, g *reviewGate, decided db.Issue, decision auditgate.Decision) error {
-	if decision.Event == "" {
+func (h *Handler) recordAuditTrail(ctx context.Context, q *db.Queries, g *reviewGate, decided db.Issue, decision gateDecision) error {
+	if decision.event == "" {
 		return nil
 	}
 	// `decided` is the row the decision was made on — re-read under the row
@@ -195,8 +270,8 @@ func (h *Handler) recordAuditTrail(ctx context.Context, q *db.Queries, g *review
 		"from": decided.Status,
 		"to":   g.target,
 	}
-	if decision.RecordLevel != "" {
-		details["level"] = string(decision.RecordLevel)
+	if decision.recordLevel != "" {
+		details["level"] = decision.recordLevel
 	}
 	if reason := strings.TrimSpace(g.reason); reason != "" {
 		details["reason"] = reason
@@ -231,7 +306,7 @@ func (h *Handler) recordAuditTrail(ctx context.Context, q *db.Queries, g *review
 		IssueID:     decided.ID,
 		ActorType:   pgtype.Text{String: g.actorType, Valid: g.actorType != ""},
 		ActorID:     actorID,
-		Action:      string(decision.Event),
+		Action:      decision.event,
 		Details:     encoded,
 	})
 	if err != nil {
@@ -280,10 +355,10 @@ func (h *Handler) publishAuditTrailEntry(workspaceID string, g *reviewGate) {
 // lockRow must be true whenever q is transactional and the decision authorizes
 // a write. The batch preflight passes false: it decides nothing on its own and
 // taking row locks it immediately releases would be churn for no guarantee.
-func (h *Handler) decideReviewGate(ctx context.Context, q *db.Queries, g *reviewGate, lockRow bool) (decision auditgate.Decision, actingMemberID pgtype.UUID, decided db.Issue, applies bool, err error) {
+func (h *Handler) decideReviewGate(ctx context.Context, q *db.Queries, g *reviewGate, lockRow bool) (decision gateDecision, actingMemberID pgtype.UUID, decided db.Issue, applies bool, err error) {
 	decided = g.prev
 	if !g.mayApply() {
-		return auditgate.Decision{}, pgtype.UUID{}, decided, false, nil
+		return gateDecision{}, pgtype.UUID{}, decided, false, nil
 	}
 
 	// A workspace that never enabled audit mode can still hold a hand-made
@@ -293,12 +368,12 @@ func (h *Handler) decideReviewGate(ctx context.Context, q *db.Queries, g *review
 	enabled, err := q.IsWorkspaceAuditMode(ctx, g.prev.WorkspaceID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return auditgate.Decision{}, pgtype.UUID{}, decided, false, nil
+			return gateDecision{}, pgtype.UUID{}, decided, false, nil
 		}
-		return auditgate.Decision{}, pgtype.UUID{}, decided, false, err
+		return gateDecision{}, pgtype.UUID{}, decided, false, err
 	}
 	if !enabled {
-		return auditgate.Decision{}, pgtype.UUID{}, decided, false, nil
+		return gateDecision{}, pgtype.UUID{}, decided, false, nil
 	}
 
 	// Re-read the issue under a row lock, inside this transaction. g.prev came
@@ -318,7 +393,7 @@ func (h *Handler) decideReviewGate(ctx context.Context, q *db.Queries, g *review
 			WorkspaceID: g.prev.WorkspaceID,
 		})
 		if lockErr != nil && !errors.Is(lockErr, pgx.ErrNoRows) {
-			return auditgate.Decision{}, pgtype.UUID{}, decided, false, lockErr
+			return gateDecision{}, pgtype.UUID{}, decided, false, lockErr
 		}
 		if lockErr == nil {
 			decided = locked
@@ -329,18 +404,91 @@ func (h *Handler) decideReviewGate(ctx context.Context, q *db.Queries, g *review
 		}
 	}
 
-	in, actingMemberID, err := h.auditGateInput(ctx, q, g, decided)
-	if err != nil {
-		return auditgate.Decision{}, pgtype.UUID{}, decided, false, err
-	}
-	if in.RefusedActor {
-		return auditgate.Decision{
-			Code:   auditgate.DenyLevelRequired,
-			Reason: "you are not a member of this auditee and cannot move its workpapers",
-		}, pgtype.UUID{}, decided, true, nil
+	// Which chain governs this write. The review chain answers first: a
+	// workpaper leaving its chain for a remediation status is that chain's
+	// refusal to make, and it is the one that can explain why.
+	if g.mayApplyReview() {
+		in, memberID, inputErr := h.auditGateInput(ctx, q, g, decided)
+		if inputErr != nil {
+			return gateDecision{}, pgtype.UUID{}, decided, false, inputErr
+		}
+		return fromReviewDecision(auditgate.Decide(in)), memberID, decided, true, nil
 	}
 
-	return auditgate.Decide(in), actingMemberID, decided, true, nil
+	in, memberID, inputErr := h.remediationGateInput(ctx, q, g)
+	if inputErr != nil {
+		return gateDecision{}, pgtype.UUID{}, decided, false, inputErr
+	}
+	return fromRemediationDecision(remediate.Decide(in)), memberID, decided, true, nil
+}
+
+// remediationGateInput collects the facts a ledger decision rests on: whether
+// this issue is on the ledger at all, who owes the fix, and whether the actor
+// holds a rank on the engagement that raised it.
+//
+// Read through q, the caller's transactional handle, for the reason
+// auditGateInput is: the standing being checked and the write being authorized
+// have to see one snapshot.
+func (h *Handler) remediationGateInput(ctx context.Context, q *db.Queries, g *reviewGate) (remediate.Input, pgtype.UUID, error) {
+	var actingMemberID pgtype.UUID
+	in := remediate.Input{
+		From:         g.prev.Status,
+		To:           g.target,
+		Note:         g.reason,
+		ActorIsAgent: g.actorType == "agent",
+	}
+	if g.prev.AssigneeType.String == "member" && g.prev.AssigneeID.Valid {
+		in.ResponsibleID = util.UUIDToString(g.prev.AssigneeID)
+	}
+
+	record, recordErr := q.GetAuditRemediation(ctx, g.prev.ID)
+	if recordErr != nil && !errors.Is(recordErr, pgx.ErrNoRows) {
+		return in, pgtype.UUID{}, recordErr
+	}
+	if recordErr != nil {
+		// Not on the ledger. The gate refuses on this alone, so nothing else is
+		// worth reading.
+		return in, pgtype.UUID{}, nil
+	}
+	in.IsRemediation = true
+
+	if in.ActorIsAgent {
+		return in, pgtype.UUID{}, nil
+	}
+	actorUUID, parseErr := util.ParseUUID(g.actorID)
+	if parseErr != nil {
+		in.RefusedActor = true
+		return in, pgtype.UUID{}, nil
+	}
+	member, memberErr := q.GetMemberByUserAndWorkspace(ctx, db.GetMemberByUserAndWorkspaceParams{
+		UserID:      actorUUID,
+		WorkspaceID: g.prev.WorkspaceID,
+	})
+	if memberErr != nil {
+		if errors.Is(memberErr, pgx.ErrNoRows) {
+			in.RefusedActor = true
+			return in, pgtype.UUID{}, nil
+		}
+		return in, pgtype.UUID{}, memberErr
+	}
+	actingMemberID = member.ID
+	in.ActorMemberID = util.UUIDToString(member.ID)
+	in.ActorIsAdmin = member.Role == "owner" || member.Role == "admin"
+
+	// The rank is read from the engagement that RAISED the item, not from
+	// whatever engagement the actor happens to hold a rank on. Verification is
+	// the audit function's act over its own finding; a reviewer on an unrelated
+	// engagement has no standing over this one.
+	level, levelErr := q.GetAuditRoleLevel(ctx, db.GetAuditRoleLevelParams{
+		ProjectID: record.SourceProjectID,
+		MemberID:  member.ID,
+	})
+	if levelErr != nil && !errors.Is(levelErr, pgx.ErrNoRows) {
+		return in, pgtype.UUID{}, levelErr
+	}
+	in.ActorIsVerifier = levelErr == nil && level != ""
+
+	return in, actingMemberID, nil
 }
 
 // preflightBatchReviewGate runs the gate over every issue in a batch WITHOUT
@@ -388,7 +536,7 @@ func (h *Handler) preflightBatchReviewGate(ctx context.Context, issueIDs []strin
 		if err != nil {
 			return err
 		}
-		if applies && !decision.Allowed {
+		if applies && !decision.allowed {
 			return &reviewGateDenial{decision: decision}
 		}
 	}
@@ -474,6 +622,17 @@ func (h *Handler) auditGateInput(ctx context.Context, q *db.Queries, g *reviewGa
 		}
 		if levelErr == nil {
 			in.ActorLevel = auditgate.Level(level)
+		}
+	}
+
+	// Only when the write moves the issue between projects: this is the one
+	// case where being on the ledger changes the review chain's answer, and
+	// paying for the read on every governed transition would buy nothing.
+	if in.ProjectChanged {
+		if _, err := q.GetAuditRemediation(ctx, g.prev.ID); err == nil {
+			in.IsRemediationItem = true
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return in, pgtype.UUID{}, err
 		}
 	}
 

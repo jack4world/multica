@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/multica-ai/multica/server/internal/auditgate"
 	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/internal/remediate"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
@@ -21,8 +22,10 @@ import (
 type AuditActionResponse struct {
 	Event string `json:"event"`
 	To    string `json:"to"`
-	// RequiresReason tells the client to collect one before sending, so the
-	// common case never reaches a refusal.
+	// RequiresReason tells the client to collect free text before sending, so
+	// the common case never reaches a refusal. What that text IS depends on the
+	// event: a reviewer's reason for returning a workpaper, or the account of
+	// what was fixed or checked on a remediation item.
 	RequiresReason bool `json:"requires_reason"`
 }
 
@@ -58,32 +61,60 @@ func (h *Handler) ListAuditActions(w http.ResponseWriter, r *http.Request) {
 		prev: issue, target: "", targetProject: issue.ProjectID,
 		actorType: actorType, actorID: actorID,
 	}
-	// Read-only: no row lock, nothing written. The authoritative check still
-	// happens inside the write's own transaction when a button is pressed.
-	_, _, decided, applies, err := h.decideReviewGate(r.Context(), h.Queries, gate, false)
-	if err != nil {
-		slog.Warn("ListAuditActions failed", append(logger.RequestAttrs(r), "error", err)...)
-		writeError(w, http.StatusInternalServerError, "failed to read audit actions")
-		return
-	}
-	if !applies {
-		writeJSON(w, http.StatusOK, []AuditActionResponse{})
+
+	// A workpaper and a remediation item are the same kind of row with
+	// different rules, and one endpoint answers for both — a client should not
+	// have to know which chain an issue is on to ask what it can do with it.
+	if gate.mayApplyReview() {
+		// Read-only: no row lock, nothing written. The authoritative check
+		// still happens inside the write's own transaction when a button is
+		// pressed.
+		_, _, decided, applies, err := h.decideReviewGate(r.Context(), h.Queries, gate, false)
+		if err != nil {
+			slog.Warn("ListAuditActions failed", append(logger.RequestAttrs(r), "error", err)...)
+			writeError(w, http.StatusInternalServerError, "failed to read audit actions")
+			return
+		}
+		if !applies {
+			writeJSON(w, http.StatusOK, []AuditActionResponse{})
+			return
+		}
+		in, _, err := h.auditGateInput(r.Context(), h.Queries, gate, decided)
+		if err != nil {
+			slog.Warn("ListAuditActions input failed", append(logger.RequestAttrs(r), "error", err)...)
+			writeError(w, http.StatusInternalServerError, "failed to read audit actions")
+			return
+		}
+		actions := auditgate.Available(in)
+		resp := make([]AuditActionResponse, 0, len(actions))
+		for _, a := range actions {
+			resp = append(resp, AuditActionResponse{
+				Event:          string(a.Event),
+				To:             a.To,
+				RequiresReason: a.RequiresReason,
+			})
+		}
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 
-	in, _, err := h.auditGateInput(r.Context(), h.Queries, gate, decided)
+	// The ledger. Asked directly rather than through decideReviewGate because
+	// that helper answers about a TRANSITION, and an item sitting on an
+	// ordinary status is one nobody has started yet — exactly the case where
+	// "start remediation" is the action to offer.
+	in, _, err := h.remediationGateInput(r.Context(), h.Queries, gate)
 	if err != nil {
-		slog.Warn("ListAuditActions input failed", append(logger.RequestAttrs(r), "error", err)...)
+		slog.Warn("ListAuditActions ledger input failed", append(logger.RequestAttrs(r), "error", err)...)
 		writeError(w, http.StatusInternalServerError, "failed to read audit actions")
 		return
 	}
-	actions := auditgate.Available(in)
-	resp := make([]AuditActionResponse, 0, len(actions))
-	for _, a := range actions {
+	ledgerActions := remediate.Available(in)
+	resp := make([]AuditActionResponse, 0, len(ledgerActions))
+	for _, a := range ledgerActions {
 		resp = append(resp, AuditActionResponse{
 			Event:          string(a.Event),
 			To:             a.To,
-			RequiresReason: a.RequiresReason,
+			RequiresReason: a.RequiresNote,
 		})
 	}
 	writeJSON(w, http.StatusOK, resp)

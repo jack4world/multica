@@ -347,6 +347,13 @@ cleared_vcs_pr_links AS (
 -- the link rows are: deleting by bare issue_id would reach another tenant's row.
 cleared_audit_workpaper AS (
     DELETE FROM audit_workpaper WHERE issue_id IN (SELECT target.id FROM target)
+),
+-- The ledger row is the same shape of thing for a 整改事项, and left behind it
+-- is worse than useless: the overdue sweep and the ledger read both join issue,
+-- so an orphan is invisible while still counting against the department that
+-- can then never be removed.
+cleared_audit_remediation AS (
+    DELETE FROM audit_remediation WHERE issue_id IN (SELECT target.id FROM target)
 )
 DELETE FROM issue WHERE issue.id IN (SELECT target.id FROM target);
 

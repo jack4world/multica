@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -187,6 +188,13 @@ func (h *Handler) seedAuditMode(r *http.Request, workspaceID string, wsUUID pgty
 		if err := h.seedAuditDocumentCategories(ctx, qtx, wsUUID); err != nil {
 			return pgtype.Timestamptz{}, false, http.StatusInternalServerError, err.Error()
 		}
+		// Same reason, same path: an auditee enabled before the remediation
+		// chain existed has no catalog entry for 整改中, and no other route by
+		// which to get one. Convergent, so re-enabling adds only what is
+		// missing.
+		if status, msg := h.seedMissingAuditStatuses(ctx, qtx, wsUUID, locale); status != 0 {
+			return pgtype.Timestamptz{}, false, status, msg
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return pgtype.Timestamptz{}, false, http.StatusInternalServerError, err.Error()
 		}
@@ -212,7 +220,7 @@ func (h *Handler) seedAuditMode(r *http.Request, workspaceID string, wsUUID pgty
 	// a status with different behavior.
 	taken, err := qtx.ListIssueStatusKeysInSet(ctx, db.ListIssueStatusKeysInSetParams{
 		WorkspaceID: wsUUID,
-		Keys:        auditmode.StatusKeys(),
+		Keys:        auditmode.SeedStatusKeys(),
 	})
 	if err != nil {
 		return pgtype.Timestamptz{}, false, http.StatusInternalServerError, err.Error()
@@ -234,8 +242,8 @@ func (h *Handler) seedAuditMode(r *http.Request, workspaceID string, wsUUID pgty
 	// its own review chain by hand collides here without owning a single audit
 	// key, because DeriveKey slugifies a CJK name to nothing and falls back to
 	// `<category>_2`.
-	loweredStatusNames := make([]string, 0, len(auditmode.Statuses()))
-	for _, st := range auditmode.Statuses() {
+	loweredStatusNames := make([]string, 0, len(auditmode.SeedStatuses()))
+	for _, st := range auditmode.SeedStatuses() {
 		loweredStatusNames = append(loweredStatusNames, strings.ToLower(st.Names[locale]))
 	}
 	takenStatusNames, err := qtx.ListIssueStatusNamesInSet(ctx, db.ListIssueStatusNamesInSetParams{
@@ -277,7 +285,7 @@ func (h *Handler) seedAuditMode(r *http.Request, workspaceID string, wsUUID pgty
 
 	// In chain order: the query positions each row at MAX+1 within its
 	// category, so each insert sees the one before it.
-	for _, st := range auditmode.Statuses() {
+	for _, st := range auditmode.SeedStatuses() {
 		if err := qtx.SeedAuditIssueStatusEntry(ctx, db.SeedAuditIssueStatusEntryParams{
 			WorkspaceID: wsUUID,
 			Key:         st.Key,
@@ -345,4 +353,76 @@ func seedWriteStatus(err error) int {
 		return http.StatusConflict
 	}
 	return http.StatusInternalServerError
+}
+
+// seedMissingAuditStatuses adds any seeded status this auditee does not have.
+//
+// THE PATH, not the mechanism. An auditee enabled before a chain existed is
+// reached only here: the enable endpoint returns early once a workspace is an
+// auditee, so a status added to the catalog in a later release has no other way
+// in, and the feature built on it silently does not exist for every workspace
+// that adopted the vertical early. Convergent by construction — it adds what is
+// absent and touches nothing that is present, so calling it again costs one
+// query per status and changes nothing.
+//
+// A non-zero status is the HTTP status to report.
+func (h *Handler) seedMissingAuditStatuses(ctx context.Context, qtx *db.Queries, wsUUID pgtype.UUID, locale auditmode.Locale) (int, string) {
+	defs := auditmode.SeedStatuses()
+	// The name index is unique on (workspace_id, lower(name)) among active
+	// rows, so a workspace that built its own 整改中 by hand would fail the
+	// insert. Reported as a conflict naming the row to rename, not as a 500:
+	// the admin can fix it, and nothing else can.
+	lowered := make([]string, 0, len(defs))
+	for _, st := range defs {
+		lowered = append(lowered, strings.ToLower(st.Names[locale]))
+	}
+	takenNames, err := qtx.ListIssueStatusNamesInSet(ctx, db.ListIssueStatusNamesInSetParams{
+		WorkspaceID: wsUUID,
+		Names:       lowered,
+	})
+	if err != nil {
+		return http.StatusInternalServerError, err.Error()
+	}
+	existing, err := qtx.ListIssueStatusKeysInSet(ctx, db.ListIssueStatusKeysInSetParams{
+		WorkspaceID: wsUUID,
+		Keys:        auditmode.SeedStatusKeys(),
+	})
+	if err != nil {
+		return http.StatusInternalServerError, err.Error()
+	}
+	have := make(map[string]bool, len(existing))
+	haveName := make(map[string]bool, len(existing))
+	for _, row := range existing {
+		have[row.Key] = true
+		haveName[strings.ToLower(row.Name)] = true
+	}
+	// A name held by a row that is NOT one of ours is the collision worth
+	// reporting; a name held by our own seeded row is simply already seeded.
+	clashing := make([]string, 0, len(takenNames))
+	for _, name := range takenNames {
+		if !haveName[strings.ToLower(name)] {
+			clashing = append(clashing, name)
+		}
+	}
+	if len(clashing) > 0 {
+		return http.StatusConflict,
+			"this workspace already has statuses named: " + strings.Join(clashing, ", ") + "; rename them so the audit chain can be completed"
+	}
+
+	for _, st := range defs {
+		if have[st.Key] {
+			continue
+		}
+		if err := qtx.SeedAuditIssueStatusEntryIfAbsent(ctx, db.SeedAuditIssueStatusEntryIfAbsentParams{
+			WorkspaceID: wsUUID,
+			Key:         st.Key,
+			Name:        st.Names[locale],
+			Description: st.Descriptions[locale],
+			Category:    st.Category,
+			Color:       st.Color,
+		}); err != nil {
+			return seedWriteStatus(err), err.Error()
+		}
+	}
+	return 0, ""
 }

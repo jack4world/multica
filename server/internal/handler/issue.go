@@ -2940,7 +2940,7 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to validate the issue status")
 			return
 		}
-		if applies && !decision.Allowed {
+		if applies && !decision.allowed {
 			writeReviewGateError(w, &reviewGateDenial{decision: decision})
 			return
 		}
@@ -3169,9 +3169,11 @@ type UpdateIssueRequest struct {
 	// it and receive conservative channel-media preservation.
 	DescriptionBase *string `json:"description_base,omitempty"`
 	Status          *string `json:"status"`
-	// ReviewNote accompanies an audit review decision. Required when a reviewer
-	// returns a workpaper to its preparer: "rejected" with no reason leaves the
-	// preparer told their work does not stand without being told what to fix.
+	// ReviewNote accompanies an audit decision, on either chain. Required when
+	// a reviewer returns a workpaper to its preparer ("rejected" with no reason
+	// leaves the preparer told their work does not stand without being told
+	// what to fix), and on every remediation step that asserts something: what
+	// was fixed, what was checked, or why the fix does not stand.
 	ReviewNote    *string  `json:"review_note"`
 	Priority      *string  `json:"priority"`
 	AssigneeType  *string  `json:"assignee_type"`
