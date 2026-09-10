@@ -88,6 +88,9 @@ func (f auditFixture) statusOf(t *testing.T, issueID string) string {
 
 func TestReviewGateAdvancesAWorkpaperThroughTheWholeChain(t *testing.T) {
 	f := newAuditFixture(t)
+	// The longest chain an engagement can run, walked end to end. Two levels is
+	// the default and files after two reviews; that is its own test.
+	f.setDepth(t, 3).Want(http.StatusOK)
 	wp := f.workpaper(t, auditmode.StatusDrafting)
 
 	f.setStatus(t, wp, auditmode.StatusReviewL1, testUserID).Want(http.StatusOK)
@@ -330,13 +333,15 @@ func TestSeatingAReviewerIsOwnerAdminOnlyAndNeverAnAgent(t *testing.T) {
 }
 
 // One level per person per engagement is what makes "nobody reviews at two
-// levels" structural. Re-seating replaces rather than accumulating.
+// levels" structural. Re-seating replaces rather than accumulating. The second
+// rank is L2 because the fixture's engagement runs two levels; seating a rank
+// the engagement does not run is refused, and is its own test.
 func TestSeatingAReviewerAtASecondLevelReplacesTheFirst(t *testing.T) {
 	f := newAuditFixture(t)
 	member := f.reviewers[auditgate.LevelL1]
 
 	req := auditRequest(http.MethodPut, "/api/projects/"+f.projectID+"/audit-roles", f.workspaceID,
-		map[string]any{"member_id": member, "level": string(auditgate.LevelL3)})
+		map[string]any{"member_id": member, "level": string(auditgate.LevelL2)})
 	testutil.Call(t, testHandler.SetAuditRole, withURLParam(req, "id", f.projectID)).Want(http.StatusOK)
 
 	if n := dbfx.Count(t, `SELECT COUNT(*) FROM audit_role WHERE project_id = $1 AND member_id = $2`, f.projectID, member); n != 1 {
@@ -344,8 +349,8 @@ func TestSeatingAReviewerAtASecondLevelReplacesTheFirst(t *testing.T) {
 	}
 	var level string
 	dbfx.QueryRow(t, `SELECT level FROM audit_role WHERE project_id = $1 AND member_id = $2`, f.projectID, member).Scan(&level)
-	if level != string(auditgate.LevelL3) {
-		t.Errorf("level = %q, want %q", level, auditgate.LevelL3)
+	if level != string(auditgate.LevelL2) {
+		t.Errorf("level = %q, want %q", level, auditgate.LevelL2)
 	}
 }
 

@@ -38,8 +38,12 @@ The person who owned a workpaper at the moment it was submitted for review. Dist
 _Avoid_: 作者, 创建者, 负责人, author
 
 **复核人 (Reviewer)**:
-One of exactly three levels: 主审 (l1), 项目经理 (l2), 部门负责人 (l3). A preparer may never review their own workpaper, and no person may hold two levels on the same workpaper.
+Someone seated at one of an engagement's review levels: 主审 (l1), 项目经理 (l2), 部门负责人 (l3). A preparer may never review their own workpaper, and no person may hold two levels on the same engagement. Which levels exist is the engagement's 复核级数, so a rank above that depth cannot be seated.
 _Avoid_: 审核人, 批准人, approver
+
+**复核级数 (Review Depth)**:
+How many review levels an engagement runs: one, two or three, default two. A property of the engagement, decided when it is set up and rarely corrected afterwards — never a property of an individual workpaper, and never a global setting.
+_Avoid_: 复核层级, 审批层级, 级别
 
 ### Process
 
@@ -48,9 +52,13 @@ A reviewer's ruling on a workpaper: pass, or reject. Rejection always returns th
 _Avoid_: 审核, 审批, 批准
 
 **归档 (Archived)**:
-The terminal state a workpaper reaches after passing all three review levels. Immutable: a correction is a new version, never an edit. Unrelated to a status definition being retired from the catalog.
+The terminal state a workpaper reaches after passing every review level its engagement runs. Immutable: a correction is a new version, never an edit. Unrelated to a status definition being retired from the catalog.
 _Avoid_: 完成, 锁定, 封存, locked
 
+
+**审计阶段 (Engagement Phase)**:
+Where an engagement is in its own lifecycle: 准备 (preparation), 现场 (fieldwork), 报告 (reporting), 后续跟踪 (follow_up). Descriptive, not a gate — it records where the work is, and no transition is refused because of it. Distinct from 项目状态, which is the platform's own project status.
+_Avoid_: 项目状态, 进度, stage
 
 ### Findings
 

@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/auditgate"
 	"github.com/multica-ai/multica/server/internal/auditmeta"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/logger"
@@ -42,6 +43,8 @@ type ProjectResponse struct {
 	AuditPeriodStart *string `json:"audit_period_start,omitempty"`
 	AuditPeriodEnd   *string `json:"audit_period_end,omitempty"`
 	AuditType        *string `json:"audit_type,omitempty"`
+	ReviewLevels     int     `json:"review_levels"`
+	AuditPhase       *string `json:"audit_phase,omitempty"`
 	CreatedAt        string  `json:"created_at"`
 	UpdatedAt        string  `json:"updated_at"`
 	IssueCount       int64   `json:"issue_count"`
@@ -72,6 +75,8 @@ func projectToResponse(p db.Project) ProjectResponse {
 		AuditPeriodStart: dateToPtr(p.AuditPeriodStart),
 		AuditPeriodEnd:   dateToPtr(p.AuditPeriodEnd),
 		AuditType:        textToPtr(p.AuditType),
+		ReviewLevels:     int(p.ReviewLevels),
+		AuditPhase:       textToPtr(p.AuditPhase),
 	}
 }
 
@@ -148,6 +153,9 @@ type UpdateProjectRequest struct {
 	AuditPeriodStart *string `json:"audit_period_start"`
 	AuditPeriodEnd   *string `json:"audit_period_end"`
 	AuditType        *string `json:"audit_type"`
+	// ReviewLevels is how many review levels this engagement runs, 1-3.
+	ReviewLevels *int    `json:"review_levels"`
+	AuditPhase   *string `json:"audit_phase"`
 }
 
 func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
@@ -626,6 +634,47 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		params.AuditType = pgtype.Text{String: auditType, Valid: auditType != ""}
+	}
+
+	if req.ReviewLevels != nil {
+		levels := *req.ReviewLevels
+		if levels < 1 || levels > auditgate.MaxReviewLevels {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf(
+				"review_levels must be between 1 and %d", auditgate.MaxReviewLevels))
+			return
+		}
+		// Lowering the depth under a workpaper already at a deeper stage would
+		// strand it: no transition would reach it and none would leave. A
+		// configuration correction must not become a data problem.
+		if levels < int(prevProject.ReviewLevels) {
+			beyond := make([]string, 0, auditgate.MaxReviewLevels)
+			for _, l := range auditgate.Levels()[levels:] {
+				beyond = append(beyond, auditgate.ReviewStatusForLevel(l))
+			}
+			stranded, countErr := h.Queries.CountWorkpapersAboveDepth(r.Context(), db.CountWorkpapersAboveDepthParams{
+				ProjectID: prevProject.ID, BeyondStatuses: beyond,
+			})
+			if countErr != nil {
+				writeError(w, http.StatusInternalServerError, "failed to check the engagement's workpapers")
+				return
+			}
+			if stranded > 0 {
+				writeError(w, http.StatusConflict, fmt.Sprintf(
+					"%d workpaper(s) are at a review level this change would remove; move them first",
+					stranded))
+				return
+			}
+		}
+		params.ReviewLevels = pgtype.Int4{Int32: int32(levels), Valid: true}
+	}
+	if req.AuditPhase != nil {
+		phase := strings.TrimSpace(*req.AuditPhase)
+		if !auditmeta.ValidPhaseOrEmpty(phase) {
+			writeError(w, http.StatusBadRequest,
+				"audit_phase must be one of: "+strings.Join(auditmeta.Phases(), ", "))
+			return
+		}
+		params.AuditPhase = pgtype.Text{String: phase, Valid: phase != ""}
 	}
 
 	project, err := h.Queries.UpdateProject(r.Context(), params)

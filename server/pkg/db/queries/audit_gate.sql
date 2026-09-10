@@ -7,6 +7,20 @@ SELECT (audit_mode_enabled_at IS NOT NULL)::bool AS enabled
 FROM workspace
 WHERE id = $1;
 
+-- name: GetEngagementReviewLevels :one
+-- How many review levels this engagement runs. Read on the write path of every
+-- governed transition, by primary key.
+SELECT review_levels FROM project
+WHERE id = $1 AND workspace_id = $2;
+
+-- name: CountWorkpapersAboveDepth :one
+-- Workpapers sitting at a review stage the engagement would no longer have.
+-- Lowering the depth under one of them would strand it: a configuration
+-- correction must not become a data problem.
+SELECT COUNT(*)::bigint FROM issue
+WHERE project_id = $1
+  AND status = ANY(sqlc.arg('beyond_statuses')::text[]);
+
 -- name: LockIssueForReviewGate :one
 -- Re-reads the issue under a row lock INSIDE the gate's transaction, so the
 -- status and project the decision rests on are the ones the write lands on.

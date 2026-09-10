@@ -30,6 +30,10 @@ func base() Input {
 		// Present by default so tests about anything else are unaffected by the
 		// rejection-needs-a-reason rule; the tests about that rule clear it.
 		Reason: "does not stand",
+		// THREE, deliberately, even though two is the product default: these
+		// tests are about the chain's shape, and the deepest chain exercises
+		// the most of it. The tests about depth set their own.
+		ReviewLevels: 3,
 	}
 }
 

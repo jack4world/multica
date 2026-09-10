@@ -415,6 +415,28 @@ func (h *Handler) auditGateInput(ctx context.Context, q *db.Queries, g *reviewGa
 		ActorIsAgent:       g.actorType == "agent",
 	}
 
+	// The chain's depth is a property of the engagement, and the gate cannot
+	// tell a level this engagement does not run from an out-of-order step
+	// without it. Read from the engagement the issue is in now; a write that
+	// moves it between engagements is refused outright while it carries a
+	// chain status.
+	engagement := g.prev.ProjectID
+	if !engagement.Valid {
+		engagement = g.targetProject
+	}
+	if engagement.Valid {
+		levels, levelsErr := q.GetEngagementReviewLevels(ctx, db.GetEngagementReviewLevelsParams{
+			ID:          engagement,
+			WorkspaceID: g.prev.WorkspaceID,
+		})
+		if levelsErr != nil && !errors.Is(levelsErr, pgx.ErrNoRows) {
+			return in, pgtype.UUID{}, levelsErr
+		}
+		if levelsErr == nil {
+			in.ReviewLevels = int(levels)
+		}
+	}
+
 	if !in.ActorIsAgent {
 		// Read through q, not h.Queries: the actor's membership and admin status
 		// are decision inputs, and reading them from a different snapshot than
@@ -442,16 +464,9 @@ func (h *Handler) auditGateInput(ctx context.Context, q *db.Queries, g *reviewGa
 		in.ActorMemberID = util.UUIDToString(member.ID)
 		in.ActorIsAdmin = member.Role == "owner" || member.Role == "admin"
 
-		// Ranks are scoped to an engagement. Read them from the one the issue
-		// is in now; a write that moves it between engagements is refused
-		// outright while it carries a chain status, so there is no case where
-		// the destination's ranks would be the ones to consult.
-		roleProject := g.prev.ProjectID
-		if !roleProject.Valid {
-			roleProject = g.targetProject
-		}
+		// Ranks are scoped to the same engagement whose depth was read above.
 		level, levelErr := q.GetAuditRoleLevel(ctx, db.GetAuditRoleLevelParams{
-			ProjectID: roleProject,
+			ProjectID: engagement,
 			MemberID:  member.ID,
 		})
 		if levelErr != nil && !errors.Is(levelErr, pgx.ErrNoRows) {

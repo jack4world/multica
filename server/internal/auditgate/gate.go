@@ -31,8 +31,36 @@ const (
 	LevelL3 Level = "reviewer_l3"
 )
 
-// Levels lists the reviewer ranks in chain order.
+// DefaultReviewLevels is what an engagement runs unless it says otherwise.
+//
+// TWO, not three. 三级复核 is a CPA firm's quality-control rule; a company's
+// internal audit function typically runs 主审复核 → 部门负责人审定. A department
+// with two levels that is forced to invent a third reviewer produces a
+// signature that satisfies the software and nobody else — which teaches
+// everyone involved that the whole chain is theatre.
+const DefaultReviewLevels = 2
+
+// MaxReviewLevels bounds the chain. Each level is a status in a catalog people
+// read, and nothing asks for a fourth.
+const MaxReviewLevels = 3
+
+// Levels lists the reviewer ranks in chain order, up to the maximum.
 func Levels() []Level { return []Level{LevelL1, LevelL2, LevelL3} }
+
+// LevelsUpTo lists the ranks an engagement of this depth actually runs.
+func LevelsUpTo(depth int) []Level {
+	return Levels()[:normalizeDepth(depth)]
+}
+
+// normalizeDepth treats an unset or out-of-range depth as the default, so a
+// caller that forgot to read the engagement gets the ordinary chain rather than
+// no chain at all.
+func normalizeDepth(depth int) int {
+	if depth < 1 || depth > MaxReviewLevels {
+		return DefaultReviewLevels
+	}
+	return depth
+}
 
 // ValidLevel reports whether v names a reviewer rank.
 func ValidLevel(v string) bool {
@@ -109,6 +137,9 @@ type Input struct {
 	// PreparerID is the member recorded as having submitted this workpaper for
 	// review, or empty if it has never been submitted.
 	PreparerID string
+	// ReviewLevels is how many levels THIS engagement runs, 1..3. Zero means
+	// the caller did not set it and the default applies.
+	ReviewLevels int
 	// Reason is the free text accompanying the write. Required on a rejection
 	// and ignored otherwise.
 	Reason string
@@ -143,32 +174,66 @@ func deny(code DenyCode, format string, args ...any) Decision {
 	return Decision{Code: code, Reason: fmt.Sprintf(format, args...)}
 }
 
-// levelFor maps a chain step to the rank entitled to make it. The rank that
-// passes a workpaper ON from a status is the same one entitled to reject it,
-// which is why rejection is not a separate table.
-func levelFor(from string) (Level, bool) {
-	switch from {
-	case auditmode.StatusReviewL1:
-		return LevelL1, true
-	case auditmode.StatusReviewL2:
-		return LevelL2, true
-	case auditmode.StatusReviewL3:
-		return LevelL3, true
-	}
-	return "", false
+// reviewStatuses are the chain's review stages in order. The catalog seeds all
+// three in every auditee because it is workspace-level and one auditee can hold
+// engagements at different depths; which of them an engagement can REACH is
+// what the depth decides.
+var reviewStatuses = []string{
+	auditmode.StatusReviewL1,
+	auditmode.StatusReviewL2,
+	auditmode.StatusReviewL3,
 }
 
-// nextIn maps a review status to the one it advances to.
-func nextIn(from string) (string, bool) {
-	switch from {
-	case auditmode.StatusReviewL1:
-		return auditmode.StatusReviewL2, true
-	case auditmode.StatusReviewL2:
-		return auditmode.StatusReviewL3, true
-	case auditmode.StatusReviewL3:
+// ReviewStatusForLevel is the status a rank reviews at.
+func ReviewStatusForLevel(level Level) string {
+	for i, l := range Levels() {
+		if l == level {
+			return reviewStatuses[i]
+		}
+	}
+	return ""
+}
+
+// ordinalOf reports which review stage a status is, 1-based, and whether it is
+// one at all.
+func ordinalOf(status string) (int, bool) {
+	for i, s := range reviewStatuses {
+		if s == status {
+			return i + 1, true
+		}
+	}
+	return 0, false
+}
+
+// levelFor maps a chain step to the rank entitled to make it, within an
+// engagement of this depth. A stage beyond the depth is not part of this
+// engagement's chain at all.
+//
+// The rank that passes a workpaper ON from a stage is the same one entitled to
+// reject it, which is why rejection is not a separate table.
+func levelFor(from string, depth int) (Level, bool) {
+	ordinal, ok := ordinalOf(from)
+	if !ok || ordinal > normalizeDepth(depth) {
+		return "", false
+	}
+	return Levels()[ordinal-1], true
+}
+
+// nextIn maps a review stage to what it advances to.
+//
+// THE generalisation: the LAST level files. At depth two, 项目经理 files; at
+// depth one, 主审 does. Nobody is asked to invent a reviewer to get a workpaper
+// archived.
+func nextIn(from string, depth int) (string, bool) {
+	ordinal, ok := ordinalOf(from)
+	depth = normalizeDepth(depth)
+	if !ok || ordinal > depth {
+		return "", false
+	}
+	if ordinal == depth {
 		return auditmode.StatusFiled, true
 	}
-	return "", false
+	return reviewStatuses[ordinal], true
 }
 
 // Governs reports whether a transition between these two statuses could be
@@ -280,7 +345,7 @@ func Decide(in Input) Decision {
 	case auditmode.StatusDrafting:
 		// Reached two ways: creating a workpaper, and a rejection from any
 		// level. Only the second needs a rank.
-		if level, isReview := levelFor(in.From); isReview {
+		if level, isReview := levelFor(in.From, in.ReviewLevels); isReview {
 			return decideChainStep(in, level)
 		}
 		if in.ActorIsAgent {
@@ -301,13 +366,21 @@ func Decide(in Input) Decision {
 		return Decision{Allowed: true, RecordPreparer: true, Event: EventSubmitted}
 
 	case auditmode.StatusReviewL2, auditmode.StatusReviewL3, auditmode.StatusFiled:
-		level, isReview := levelFor(in.From)
+		if ordinal, isReview := ordinalOf(in.To); isReview && ordinal > normalizeDepth(in.ReviewLevels) {
+			// Named rather than reported as a generic illegal transition: the
+			// reader needs to know this engagement has fewer levels, not that
+			// they picked a step out of order.
+			return deny(DenyIllegalTransition,
+				"this engagement runs %d review levels, so %q is not part of its chain",
+				normalizeDepth(in.ReviewLevels), in.To)
+		}
+		level, isReview := levelFor(in.From, in.ReviewLevels)
 		if !isReview {
 			return deny(DenyIllegalTransition,
 				"a workpaper cannot move from %q to %q; the review chain advances one level at a time",
 				in.From, in.To)
 		}
-		if next, _ := nextIn(in.From); next != in.To {
+		if next, _ := nextIn(in.From, in.ReviewLevels); next != in.To {
 			return deny(DenyIllegalTransition,
 				"%q advances to %q, not to %q; the review chain advances one level at a time",
 				in.From, next, in.To)

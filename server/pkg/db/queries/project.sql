@@ -48,6 +48,8 @@ UPDATE project SET
     audit_period_start = COALESCE(sqlc.narg('audit_period_start'), audit_period_start),
     audit_period_end = COALESCE(sqlc.narg('audit_period_end'), audit_period_end),
     audit_type = COALESCE(sqlc.narg('audit_type'), audit_type),
+    review_levels = COALESCE(sqlc.narg('review_levels'), review_levels),
+    audit_phase = COALESCE(sqlc.narg('audit_phase'), audit_phase),
     updated_at = now()
 WHERE id = $1
 RETURNING *;
