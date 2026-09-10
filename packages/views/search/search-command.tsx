@@ -93,6 +93,7 @@ const PAGE_KEYWORDS: Record<WorkspacePageKey, string[]> = {
   chat: ["chat", "messages", "conversation", "聊天", "消息", "对话"],
   myIssues: ["my", "issues", "assigned", "mine", "我的", "任务"],
   reviewQueue: ["review", "queue", "workpaper", "audit", "复核", "待我复核", "底稿", "审计"],
+  remediation: ["remediation", "ledger", "overdue", "follow-up", "整改", "整改台账", "台账", "逾期", "后续审计"],
   issues: ["issues", "tasks", "bugs", "任务"],
   projects: ["projects", "kanban", "项目"],
   autopilots: ["autopilot", "autopilots", "automation", "schedule", "cron", "webhook", "自动化", "定时"],

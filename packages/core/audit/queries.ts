@@ -1,6 +1,13 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
-import type { AuditAction, AuditMode, ReviewQueueItem } from "../types";
+import type {
+  AuditAction,
+  AuditDepartment,
+  AuditMode,
+  RemediationItem,
+  RemediationLedgerFilters,
+  ReviewQueueItem,
+} from "../types";
 
 /**
  * Server state for the audit review interface.
@@ -14,6 +21,12 @@ export const auditKeys = {
   mode: (wsId: string) => ["audit", wsId, "mode"] as const,
   reviewQueue: (wsId: string) => ["audit", wsId, "review-queue"] as const,
   actions: (wsId: string, issueId: string) => ["audit", wsId, "actions", issueId] as const,
+  departments: (wsId: string) => ["audit", wsId, "departments"] as const,
+  // The filters are part of the key: two filtered ledgers are two different
+  // server answers, and serving one under the other's key is how a department
+  // head ends up looking at another department's list.
+  ledger: (wsId: string, filters: RemediationLedgerFilters) =>
+    ["audit", wsId, "remediation", filters] as const,
 };
 
 export function auditModeOptions(wsId: string) {
@@ -38,5 +51,19 @@ export function auditActionsOptions(wsId: string, issueId: string) {
   return queryOptions({
     queryKey: auditKeys.actions(wsId, issueId),
     queryFn: (): Promise<AuditAction[]> => api.listAuditActions(issueId),
+  });
+}
+
+export function auditDepartmentsOptions(wsId: string) {
+  return queryOptions({
+    queryKey: auditKeys.departments(wsId),
+    queryFn: (): Promise<AuditDepartment[]> => api.listAuditDepartments(),
+  });
+}
+
+export function remediationLedgerOptions(wsId: string, filters: RemediationLedgerFilters) {
+  return queryOptions({
+    queryKey: auditKeys.ledger(wsId, filters),
+    queryFn: (): Promise<RemediationItem[]> => api.listRemediation(filters),
   });
 }

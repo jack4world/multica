@@ -115,6 +115,7 @@ const PINNED_PREVIEW_LIMIT = 5;
 type NavKey =
   | "inbox"
   | "reviewQueue"
+  | "remediation"
   | "chat"
   | "myIssues"
   | "issues"
@@ -132,6 +133,7 @@ type NavKey =
 type NavLabelKey =
   | "inbox"
   | "review_queue"
+  | "remediation"
   | "chat"
   | "my_issues"
   | "issues"
@@ -159,6 +161,7 @@ const personalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
 // stays owned by its preparer while it is being reviewed.
 const auditNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "reviewQueue", labelKey: "review_queue" },
+  { key: "remediation", labelKey: "remediation" },
 ];
 
 const workNav: { key: NavKey; labelKey: NavLabelKey }[] = [

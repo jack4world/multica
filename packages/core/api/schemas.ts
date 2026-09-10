@@ -81,6 +81,7 @@ import type {
   ShareLinkInfo,
   Skill,
   SkillImportResult,
+  RemediationItem,
   Squad,
   TimelineEntry,
   User,
@@ -2061,6 +2062,57 @@ export const ReviewQueueItemSchema = z.object({
 }).loose();
 
 export const ReviewQueueListSchema = z.array(ReviewQueueItemSchema);
+
+export const AuditDepartmentSchema = z.object({
+  id: z.string().default(""),
+  name: z.string().default(""),
+  item_count: z.number().default(0),
+}).loose();
+
+export const AuditDepartmentListSchema = z.array(AuditDepartmentSchema);
+
+export const RemediationItemSchema = z.object({
+  issue_id: z.string().default(""),
+  title: z.string().default(""),
+  status: z.string().default(""),
+  due_date: z.string().optional(),
+  // Defaulted to false rather than required: a server that predates the field
+  // has no opinion about lateness, and a client that renders every row as
+  // overdue because a key is missing is worse than one that renders none.
+  overdue: z.boolean().default(false),
+  days_late: z.number().optional(),
+  assignee_id: z.string().optional(),
+  department_id: z.string().default(""),
+  department_name: z.string().default(""),
+  source_project_id: z.string().default(""),
+  source_project_title: z.string().default(""),
+  source_issue_id: z.string().optional(),
+  verified_by: z.string().optional(),
+  verified_at: z.string().optional(),
+  verification_note: z.string().optional(),
+  created_at: z.string().default(""),
+}).loose();
+
+export const RemediationListSchema = z.array(RemediationItemSchema);
+
+/**
+ * What a malformed write response falls back to.
+ *
+ * Deliberately not overdue and with no department: a fallback that claimed a
+ * department would put a name on a row nobody chose, and one that claimed
+ * lateness would show a red row for an item the server never described.
+ */
+export const EMPTY_REMEDIATION_ITEM: RemediationItem = {
+  issue_id: "",
+  title: "",
+  status: "",
+  overdue: false,
+  department_id: "",
+  department_name: "",
+  source_project_id: "",
+  source_project_title: "",
+  created_at: "",
+};
 
 export const AuditModeSchema = z.object({
   enabled: z.boolean().default(false),
