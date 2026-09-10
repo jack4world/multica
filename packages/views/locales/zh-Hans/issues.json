@@ -991,6 +991,7 @@
       "col_status": "状态",
       "workpapers": "工作底稿共 {total} 份，已归档 {filed} 份。",
       "submit": "提交签发",
+      "submitted_toast": "已提交签发，等待复核人签字。",
       "issue": "签发",
       "send_back": "退回起草人",
       "send_back_reason": "退回理由",

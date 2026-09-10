@@ -47,7 +47,11 @@ vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("@multica/core/projects", () => ({ projectDetailOptions: () => ({ queryKey: ["project"] }) }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: project() }) }));
 vi.mock("@multica/core/api", () => ({ api: { exportAuditReport: vi.fn() } }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+// vi.hoisted, following the convention in settings/*.test.tsx: a vi.mock
+// factory is hoisted above the file's own consts, so a plain one is not
+// initialized yet when the factory runs.
+const toastSuccess = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: toastSuccess } }));
 vi.mock("../i18n", () => ({
   useT: () => ({ t: (accessor: (dict: unknown) => string) => accessor(zh) }),
 }));
@@ -58,7 +62,18 @@ beforeEach(() => {
   update.mockReset();
   create.mockReset();
   archive.mockReset();
+  toastSuccess.mockReset();
 });
+
+// The mutation hook is mocked, so nothing calls onSuccess on its own. This
+// stands in for the server having agreed, which is the only moment a
+// confirmation may be shown.
+function renderWithSuccess() {
+  update.mockImplementation((_input: unknown, opts?: { onSuccess?: () => void }) => {
+    opts?.onSuccess?.();
+  });
+  return render(<AuditReportPage projectId="p-1" />);
+}
 
 describe("audit report", () => {
   it("offers to start one when the engagement has none", () => {
@@ -112,6 +127,22 @@ describe("audit report", () => {
     reports.mockReturnValue([report({ status: "reviewing" })]);
     rerender(<AuditReportPage projectId="p-1" />);
     expect(screen.getByRole("button", { name: "签发" })).toBeInTheDocument();
+  });
+
+  // Submitting moves one badge and swaps one button — not enough feedback for
+  // the step that hands the document to someone else. Signing and sending back
+  // change the page visibly and get no toast.
+  it("confirms the submission, and only the submission", () => {
+    reports.mockReturnValue([report({ status: "drafting" })]);
+    const { rerender } = renderWithSuccess();
+    fireEvent.click(screen.getByRole("button", { name: "提交签发" }));
+    expect(toastSuccess).toHaveBeenCalledWith("已提交签发，等待复核人签字。");
+
+    toastSuccess.mockReset();
+    reports.mockReturnValue([report({ status: "reviewing" })]);
+    rerender(<AuditReportPage projectId="p-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "签发" }));
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 
   it("will not send a report back without a reason", () => {
