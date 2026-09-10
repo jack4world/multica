@@ -32,6 +32,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"audit_department":                   workspaceDelete,
 	"audit_document_category":            workspaceDelete,
 	"audit_remediation":                  workspaceDelete,
+	"audit_report":                       workspaceDelete,
 	"audit_role":                         workspaceDelete,
 	"audit_workpaper":                    workspaceDelete,
 	"autopilot":                          workspaceDelete,

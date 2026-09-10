@@ -757,6 +757,13 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to delete project audit roles")
 		return
 	}
+	// The report belongs to the engagement and is meaningless without it. The
+	// items it cited do not go: a remediation item outlives the audit that
+	// found it, which is the whole reason it belongs to no engagement.
+	if err := qtx.DeleteAuditReportsForProject(r.Context(), project.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete project audit reports")
+		return
+	}
 	if err := qtx.DeleteProject(r.Context(), db.DeleteProjectParams{
 		ID:          project.ID,
 		WorkspaceID: project.WorkspaceID,

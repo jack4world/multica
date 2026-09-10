@@ -312,6 +312,9 @@ var concurrentIndexCleanups = map[string]string{
 	"482_audit_remediation_pkey_index":                          "audit_remediation_pkey_uidx",
 	"484_audit_remediation_department_index":                    "idx_audit_remediation_workspace_department",
 	"485_audit_remediation_source_index":                        "idx_audit_remediation_source_open",
+	"487_audit_report_pkey_index":                               "audit_report_pkey_uidx",
+	"489_audit_report_project_version_uidx":                     "audit_report_project_version_uidx",
+	"490_audit_report_open_uidx":                                "audit_report_open_uidx",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

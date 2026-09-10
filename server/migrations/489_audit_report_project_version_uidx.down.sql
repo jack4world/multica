@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS audit_report_project_version_uidx;

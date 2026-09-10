@@ -261,6 +261,9 @@ deleted_audit_remediations AS (
 ),
 deleted_audit_departments AS (
     DELETE FROM audit_department WHERE audit_department.workspace_id = $1
+),
+deleted_audit_reports AS (
+    DELETE FROM audit_report WHERE audit_report.workspace_id = $1
 )
 DELETE FROM quick_action WHERE quick_action.workspace_id = $1
 `
@@ -273,6 +276,9 @@ DELETE FROM quick_action WHERE quick_action.workspace_id = $1
 // The 整改台账. The items themselves are issues and die with the issue
 // teardown; these rows are what audit knew about them, and the department list
 // is the auditee's own.
+// The engagement's deliverable, which dies with the auditee like the rest of
+// the vertical's rows. The trail's copy outside the database is what outlives a
+// teardown; see internal/scheduler/jobs_audit_export.go.
 func (q *Queries) DeleteWorkspaceIssueRoots(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceIssueRoots, workspaceID)
 	return err

@@ -245,6 +245,28 @@ type AuditRemediation struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AuditReport struct {
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	ProjectID           pgtype.UUID        `json:"project_id"`
+	Version             int32              `json:"version"`
+	Status              string             `json:"status"`
+	Title               string             `json:"title"`
+	Background          string             `json:"background"`
+	Basis               string             `json:"basis"`
+	Scope               string             `json:"scope"`
+	Opinion             string             `json:"opinion"`
+	Requirements        string             `json:"requirements"`
+	FindingsSnapshot    []byte             `json:"findings_snapshot"`
+	WorkpaperCount      int32              `json:"workpaper_count"`
+	FiledWorkpaperCount int32              `json:"filed_workpaper_count"`
+	CreatedBy           pgtype.UUID        `json:"created_by"`
+	IssuedBy            pgtype.UUID        `json:"issued_by"`
+	IssuedAt            pgtype.Timestamptz `json:"issued_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AuditRole struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`
