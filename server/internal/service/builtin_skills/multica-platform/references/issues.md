@@ -344,6 +344,38 @@ Read each sub-issue's description before promoting and only promote items whose
 stated dependencies are met; if a description conflicts with the parent's
 breakdown, leave it `backlog` and comment to confirm first.
 
+## Audit workspaces: a workpaper is not an ordinary issue
+
+Some workspaces run the audit vertical. There, an issue that belongs to a
+**project** is a **workpaper**, and it is governed by a three-level review chain
+you cannot walk. If `multica issue status` returns a refusal naming a reviewer
+level, you are in one of these workspaces and the rule is not negotiable.
+
+Two things follow, and the second is the one that goes wrong.
+
+**You cannot review.** Advancing a workpaper through `review_l1` → `review_l2` →
+`review_l3` → `filed` requires a human holding that rank on that engagement, and
+the person who prepared it is barred from reviewing it. Do not try. Do not ask a
+human to grant you a rank so that you can.
+
+**Finishing your run is NOT a handover.** This is the one that costs time. When
+you finish drafting a workpaper, the status stays where it was — `drafting` —
+and nobody knows the draft is ready. It sits in no review queue and in nobody's
+assigned work. Hand it over explicitly:
+
+```bash
+multica issue handover <issue-id> --note "Sampled 40 of 612 payments over ¥50k. Three lack a second approval; listed in the description. Could NOT verify the two 2024-11 vouchers — the scans are unreadable."
+```
+
+The note is required and is preserved in the audit trail, unchanged, through
+every later edit. The person adopting your draft reads it before they read the
+draft, and an auditor reading the filed workpaper months later can still see
+what you claimed at the time.
+
+**Say what you could not verify.** That half is what a human has to pick up. A
+note that only lists what went well is the note that gets someone in trouble
+later.
+
 ## Incorrect to correct
 
 PR title (link the issue):
@@ -351,6 +383,21 @@ PR title (link the issue):
 ```text
 Fix login redirect                  # incorrect — no issue key, won't link
 MUL-123: fix login redirect        # correct — links the PR
+```
+
+Handing over a drafted workpaper (audit workspaces):
+
+```bash
+# incorrect — the run ended, but the workpaper still sits in drafting and
+# nobody knows the draft is ready
+multica issue update <issue-id> --description "..."
+
+# incorrect — a handover with no account is a status change wearing a
+# better name; the CLI refuses it
+multica issue handover <issue-id>
+
+# correct — named act, with what you did AND what you could not verify
+multica issue handover <issue-id> --note "Ratio analysis on 2025 payables complete; two variances over 30% documented. Could not reconcile the Q3 accrual — the supporting schedule is missing."
 ```
 
 Serial / phased sub-issues (don't start the whole chain at once):
