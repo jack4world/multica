@@ -316,3 +316,14 @@ WHERE issue_id = $1
   AND action IN ('workpaper_review_passed', 'workpaper_filed')
   AND actor_id IS NOT NULL
   AND details->>'level' IS NOT NULL;
+
+-- name: ListWorkspaceDirectory :many
+-- Everyone in the auditee, with both ids and their name.
+--
+-- Read at archival to turn ids into people. The archive is a snapshot, not a
+-- set of foreign keys: whoever opens it has no database to join against, and
+-- the person may have left long before.
+SELECT m.id AS member_id, m.user_id, u.name, u.email
+FROM member m
+JOIN "user" u ON u.id = m.user_id
+WHERE m.workspace_id = $1;

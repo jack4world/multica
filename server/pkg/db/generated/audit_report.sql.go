@@ -289,7 +289,8 @@ func (q *Queries) ListAuditReportsForProject(ctx context.Context, arg ListAuditR
 }
 
 const listRemediationForReport = `-- name: ListRemediationForReport :many
-SELECT r.issue_id, i.title, i.status, i.due_date, d.name AS department_name
+SELECT r.issue_id, i.title, i.status, i.due_date, d.name AS department_name,
+       i.assignee_type, i.assignee_id, r.verified_by
 FROM audit_remediation r
 JOIN issue i ON i.id = r.issue_id
 JOIN audit_department d ON d.id = r.department_id
@@ -303,6 +304,9 @@ type ListRemediationForReportRow struct {
 	Status         string      `json:"status"`
 	DueDate        pgtype.Date `json:"due_date"`
 	DepartmentName string      `json:"department_name"`
+	AssigneeType   pgtype.Text `json:"assignee_type"`
+	AssigneeID     pgtype.UUID `json:"assignee_id"`
+	VerifiedBy     pgtype.UUID `json:"verified_by"`
 }
 
 // The items this engagement raised, in the order a report lists them. Read live
@@ -322,6 +326,9 @@ func (q *Queries) ListRemediationForReport(ctx context.Context, sourceProjectID 
 			&i.Status,
 			&i.DueDate,
 			&i.DepartmentName,
+			&i.AssigneeType,
+			&i.AssigneeID,
+			&i.VerifiedBy,
 		); err != nil {
 			return nil, err
 		}

@@ -972,6 +972,50 @@ func (q *Queries) ListWorkspaceActivityForDay(ctx context.Context, arg ListWorks
 	return items, nil
 }
 
+const listWorkspaceDirectory = `-- name: ListWorkspaceDirectory :many
+SELECT m.id AS member_id, m.user_id, u.name, u.email
+FROM member m
+JOIN "user" u ON u.id = m.user_id
+WHERE m.workspace_id = $1
+`
+
+type ListWorkspaceDirectoryRow struct {
+	MemberID pgtype.UUID `json:"member_id"`
+	UserID   pgtype.UUID `json:"user_id"`
+	Name     string      `json:"name"`
+	Email    string      `json:"email"`
+}
+
+// Everyone in the auditee, with both ids and their name.
+//
+// Read at archival to turn ids into people. The archive is a snapshot, not a
+// set of foreign keys: whoever opens it has no database to join against, and
+// the person may have left long before.
+func (q *Queries) ListWorkspaceDirectory(ctx context.Context, workspaceID pgtype.UUID) ([]ListWorkspaceDirectoryRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceDirectory, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceDirectoryRow{}
+	for rows.Next() {
+		var i ListWorkspaceDirectoryRow
+		if err := rows.Scan(
+			&i.MemberID,
+			&i.UserID,
+			&i.Name,
+			&i.Email,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockIssueForReviewGate = `-- name: LockIssueForReviewGate :one
 SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at FROM issue
 WHERE id = $1 AND workspace_id = $2

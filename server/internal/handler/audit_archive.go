@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -221,6 +222,10 @@ func (h *Handler) archiveInput(r *http.Request, project db.Project, report db.Au
 	if err != nil {
 		return in, err
 	}
+	people, err := h.newPeopleResolver(ctx, project.WorkspaceID, project.ID)
+	if err != nil {
+		return in, err
+	}
 
 	workpapers, err := h.Queries.ListWorkpapersForArchive(ctx, project.ID)
 	if err != nil {
@@ -235,7 +240,9 @@ func (h *Handler) archiveInput(r *http.Request, project db.Project, report db.Au
 			UpdatedAt: row.UpdatedAt.Time.UTC(),
 		}
 		if row.PreparerID.Valid {
-			wp.PreparerID = uuidToString(row.PreparerID)
+			wp.Preparer = people.member(row.PreparerID)
+			// The USER id, matching TrailEntry.ActorID's namespace.
+			wp.PreparerID = wp.Preparer.ID
 		}
 		if row.SubmittedAt.Valid {
 			wp.SubmittedAt = timestampToString(row.SubmittedAt)
@@ -265,6 +272,7 @@ func (h *Handler) archiveInput(r *http.Request, project db.Project, report db.Au
 		}
 		if row.ActorID.Valid {
 			entry.ActorID = uuidToString(row.ActorID)
+			entry.Actor = people.user(row.ActorID)
 		}
 		in.Trail = append(in.Trail, entry)
 	}
@@ -283,6 +291,12 @@ func (h *Handler) archiveInput(r *http.Request, project db.Project, report db.Au
 		if row.DueDate.Valid {
 			item.DueDate = row.DueDate.Time.Format("2006-01-02")
 		}
+		if row.AssigneeType.String == "member" {
+			item.Responsible = people.user(row.AssigneeID)
+		}
+		if row.VerifiedBy.Valid {
+			item.Verifier = people.member(row.VerifiedBy)
+		}
 		in.Remediation = append(in.Remediation, item)
 	}
 
@@ -300,6 +314,84 @@ func (h *Handler) archiveInput(r *http.Request, project db.Project, report db.Au
 		})
 	}
 	return in, nil
+}
+
+// peopleResolver turns the ids a live system uses into the people an archived
+// file has to name.
+//
+// Two id namespaces reach this code: the trail records actors as USER ids, and
+// audit_workpaper.preparer_id / audit_remediation.verified_by are MEMBER ids.
+// The first version of the archive wrote both through untouched, so the two
+// files could not even be matched against each other — the same person appeared
+// as two unrelated uuids. Everything leaves here resolved, and the id kept
+// alongside is always the user id.
+type peopleResolver struct {
+	byMember map[string]auditarchive.Person
+	byUser   map[string]auditarchive.Person
+}
+
+func (h *Handler) newPeopleResolver(ctx context.Context, workspaceID, projectID pgtype.UUID) (peopleResolver, error) {
+	res := peopleResolver{
+		byMember: map[string]auditarchive.Person{},
+		byUser:   map[string]auditarchive.Person{},
+	}
+	// The rank each person held on THIS engagement, as it stood at archival.
+	// "赵六 项目经理" is what makes a signature readable; "赵六" alone leaves the
+	// reader asking what standing they had to sign it.
+	levels := map[string]string{}
+	roles, err := h.Queries.ListAuditRolesForProject(ctx, projectID)
+	if err != nil {
+		return res, err
+	}
+	for _, role := range roles {
+		levels[uuidToString(role.MemberID)] = role.Level
+	}
+
+	rows, err := h.Queries.ListWorkspaceDirectory(ctx, workspaceID)
+	if err != nil {
+		return res, err
+	}
+	for _, row := range rows {
+		memberID := uuidToString(row.MemberID)
+		userID := uuidToString(row.UserID)
+		name := strings.TrimSpace(row.Name)
+		if name == "" {
+			name = row.Email
+		}
+		person := auditarchive.Person{ID: userID, Name: name, Level: levels[memberID]}
+		res.byMember[memberID] = person
+		res.byUser[userID] = person
+	}
+	return res, nil
+}
+
+// user resolves a trail actor. An id that no longer resolves keeps the id and
+// no name — which is itself worth recording, because it says the person was
+// already gone when the file closed.
+func (r peopleResolver) user(id pgtype.UUID) auditarchive.Person {
+	if !id.Valid {
+		return auditarchive.Person{}
+	}
+	key := uuidToString(id)
+	if person, ok := r.byUser[key]; ok {
+		return person
+	}
+	return auditarchive.Person{ID: key}
+}
+
+// member resolves a preparer or a verifier, and returns them in the USER
+// namespace so the archived files can be matched against each other.
+func (r peopleResolver) member(id pgtype.UUID) auditarchive.Person {
+	if !id.Valid {
+		return auditarchive.Person{}
+	}
+	if person, ok := r.byMember[uuidToString(id)]; ok {
+		return person
+	}
+	// Unresolvable: keep the raw id rather than dropping it, and say nothing
+	// about which namespace it was in — that is exactly the confusion this
+	// resolver exists to end.
+	return auditarchive.Person{ID: uuidToString(id)}
 }
 
 // propertyResolver turns an issue's property bag into names and labels.

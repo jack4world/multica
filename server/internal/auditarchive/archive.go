@@ -49,21 +49,50 @@ type Workpaper struct {
 	// Properties are the workpaper's audit fields — procedure code, procedure
 	// type, conclusion — by NAME, not by definition id. An id means nothing to
 	// someone opening the archive in three years.
-	Properties  map[string]string `json:"properties,omitempty"`
-	PreparerID  string            `json:"preparer_id,omitempty"`
-	SubmittedAt string            `json:"submitted_at,omitempty"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	Properties map[string]string `json:"properties,omitempty"`
+	// Preparer is the person, resolved. An archive is a snapshot, not a set of
+	// foreign keys: the reader has no database to join against, and the person
+	// may have left the company before anyone opens the file.
+	Preparer Person `json:"preparer,omitempty"`
+	// PreparerID is kept as a technical reference for anyone re-importing into
+	// a live system. It is a USER id, the same namespace as TrailEntry.Actor —
+	// the first version of this file wrote a member id here and a user id
+	// there, so the two could not be matched at all.
+	PreparerID  string    `json:"preparer_id,omitempty"`
+	SubmittedAt string    `json:"submitted_at,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Person is who someone WAS, at the moment the file was closed.
+//
+// The whole reason an archive exists is that it can be read without the system
+// that produced it. A bare uuid in a trail entry answers "who approved this?"
+// with "look it up" — against a database the reader does not have, holding a
+// person who may have left, in a company that may have replaced the software.
+// So the archive stores the name and the standing, and keeps the id only as a
+// technical reference.
+type Person struct {
+	ID string `json:"id,omitempty"`
+	// Name as it stood at archival. Empty when the id no longer resolves,
+	// which is itself worth recording: it says the person was already gone.
+	Name string `json:"name,omitempty"`
+	// Role on this engagement at archival — 主审 / 项目经理 / 部门负责人 — or
+	// empty for someone who held no rank on it.
+	Level string `json:"level,omitempty"`
 }
 
 // TrailEntry is one step of the engagement's history.
 type TrailEntry struct {
-	ID        string          `json:"id"`
-	IssueID   string          `json:"issue_id,omitempty"`
-	ActorType string          `json:"actor_type,omitempty"`
-	ActorID   string          `json:"actor_id,omitempty"`
-	Action    string          `json:"action"`
-	Details   json.RawMessage `json:"details,omitempty"`
-	At        time.Time       `json:"at"`
+	ID        string `json:"id"`
+	IssueID   string `json:"issue_id,omitempty"`
+	ActorType string `json:"actor_type,omitempty"`
+	ActorID   string `json:"actor_id,omitempty"`
+	// Actor is ActorID resolved. See Person: an archive nobody can read the
+	// names in is an archive that answers nothing.
+	Actor   Person          `json:"actor,omitempty"`
+	Action  string          `json:"action"`
+	Details json.RawMessage `json:"details,omitempty"`
+	At      time.Time       `json:"at"`
 }
 
 // RemediationItem is one item this engagement raised, as it stood at archival.
@@ -74,6 +103,10 @@ type RemediationItem struct {
 	DueDate    string `json:"due_date,omitempty"`
 	Status     string `json:"status"`
 	VerifiedAt string `json:"verified_at,omitempty"`
+	// Responsible is who owed the fix, and Verifier who signed it off, both as
+	// people rather than ids.
+	Responsible Person `json:"responsible,omitempty"`
+	Verifier    Person `json:"verifier,omitempty"`
 }
 
 // Attachment is one piece of evidence, indexed rather than copied. The bytes
