@@ -331,4 +331,12 @@ export type {
   CreateWorkspaceSubscriptionPortalResponse,
 } from "./billing";
 
-export type { AuditAction, ReviewQueueItem, AuditMode } from "./audit";
+export type {
+  AuditAction,
+  ReviewQueueItem,
+  AuditMode,
+  AuditDepartment,
+  RemediationItem,
+  RaiseRemediationRequest,
+  RemediationLedgerFilters,
+} from "./audit";

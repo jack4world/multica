@@ -119,6 +119,10 @@ import type {
   ListLabelsResponse,
   AuditAction,
   AuditMode,
+  AuditDepartment,
+  RemediationItem,
+  RaiseRemediationRequest,
+  RemediationLedgerFilters,
   ListIssueStatusesResponse,
   ReviewQueueItem,
   IssueStatusCategory,
@@ -386,6 +390,10 @@ import {
   ListLabelsResponseSchema,
   AuditActionListSchema,
   AuditModeSchema,
+  AuditDepartmentSchema,
+  AuditDepartmentListSchema,
+  RemediationItemSchema,
+  RemediationListSchema,
   ListIssueStatusesResponseSchema,
   ReviewQueueListSchema,
   IssueStatusEntrySchema,
@@ -409,6 +417,7 @@ import {
   EMPTY_LIST_LABELS_RESPONSE,
   EMPTY_LIST_ISSUE_STATUSES_RESPONSE,
   EMPTY_ISSUE_STATUS_ENTRY,
+  EMPTY_REMEDIATION_ITEM,
   EMPTY_RESOURCE_LABELS_RESPONSE,
   GitHubConnectResponseSchema,
   ListGitHubInstallationsResponseSchema,
@@ -3687,6 +3696,66 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/audit/review-queue`);
     return parseWithFallback(raw, ReviewQueueListSchema, [], {
       endpoint: "GET /api/audit/review-queue",
+    });
+  }
+
+  // The 整改台账. Reads are auditee membership; the writes below are gated on
+  // the server by a rank on the engagement that raised the item, so a refusal
+  // here is a real answer and not something to pre-empt in the client.
+  async listAuditDepartments(): Promise<AuditDepartment[]> {
+    const raw = await this.fetch<unknown>(`/api/audit/departments`);
+    // An auditee starts with no departments — every organization's list is its
+    // own — so an empty list is the normal first answer, not a failure.
+    return parseWithFallback(raw, AuditDepartmentListSchema, [], {
+      endpoint: "GET /api/audit/departments",
+    });
+  }
+
+  async createAuditDepartment(name: string): Promise<AuditDepartment> {
+    const raw = await this.fetch<unknown>(`/api/audit/departments`, {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+    return parseWithFallback(raw, AuditDepartmentSchema, { id: "", name, item_count: 0 }, {
+      endpoint: "POST /api/audit/departments",
+    });
+  }
+
+  async deleteAuditDepartment(id: string): Promise<void> {
+    await this.fetch<void>(`/api/audit/departments/${id}`, { method: "DELETE" });
+  }
+
+  async listRemediation(filters: RemediationLedgerFilters = {}): Promise<RemediationItem[]> {
+    const params = new URLSearchParams();
+    if (filters.department_id) params.set("department_id", filters.department_id);
+    if (filters.source_project_id) params.set("source_project_id", filters.source_project_id);
+    if (filters.assignee_id) params.set("assignee_id", filters.assignee_id);
+    if (filters.status) params.set("status", filters.status);
+    if (filters.overdue === true) params.set("overdue", "true");
+    const query = params.toString();
+    const raw = await this.fetch<unknown>(`/api/audit/remediation${query ? `?${query}` : ""}`);
+    return parseWithFallback(raw, RemediationListSchema, [], {
+      endpoint: "GET /api/audit/remediation",
+    });
+  }
+
+  async raiseRemediation(projectId: string, data: RaiseRemediationRequest): Promise<RemediationItem> {
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/remediation`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, RemediationItemSchema, EMPTY_REMEDIATION_ITEM, {
+      endpoint: "POST /api/projects/{id}/remediation",
+    });
+  }
+
+  async updateRemediationDepartment(issueId: string, departmentId: string): Promise<RemediationItem> {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/remediation`, {
+      method: "PUT",
+      body: JSON.stringify({ department_id: departmentId }),
+    });
+    return parseWithFallback(raw, RemediationItemSchema, EMPTY_REMEDIATION_ITEM, {
+      endpoint: "PUT /api/issues/{id}/remediation",
     });
   }
 

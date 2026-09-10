@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { issueKeys } from "../issues/queries";
-import { auditActionsOptions, auditKeys, auditModeOptions, reviewQueueOptions } from "./queries";
+import type { RaiseRemediationRequest, RemediationLedgerFilters } from "../types";
+import {
+  auditActionsOptions,
+  auditDepartmentsOptions,
+  auditKeys,
+  auditModeOptions,
+  remediationLedgerOptions,
+  reviewQueueOptions,
+} from "./queries";
 
 /** Whether this workspace is an auditee. Gates every audit surface. */
 export function useAuditMode(wsId: string) {
@@ -51,6 +59,75 @@ export function useReviewAction(wsId: string) {
       void queryClient.invalidateQueries({ queryKey: auditKeys.reviewQueue(wsId) });
       void queryClient.invalidateQueries({ queryKey: auditKeys.actions(wsId, input.issueId) });
       void queryClient.invalidateQueries({ queryKey: issueKeys.detail(wsId, input.issueId) });
+    },
+  });
+}
+
+/** The auditee's 责任部门 list. */
+export function useAuditDepartments(wsId: string, enabled = true) {
+  return useQuery({ ...auditDepartmentsOptions(wsId), enabled: Boolean(wsId) && enabled });
+}
+
+/** The 整改台账, filtered. */
+export function useRemediationLedger(
+  wsId: string,
+  filters: RemediationLedgerFilters = {},
+  enabled = true,
+) {
+  return useQuery({ ...remediationLedgerOptions(wsId, filters), enabled: Boolean(wsId) && enabled });
+}
+
+/**
+ * Add a department to the auditee's list.
+ *
+ * Not optimistic: the server refuses a name that already exists
+ * case-insensitively, and showing the row before it has agreed would show two
+ * departments where there is one — which is the exact failure the closed list
+ * exists to prevent.
+ */
+export function useCreateAuditDepartment(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.createAuditDepartment(name),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: auditKeys.departments(wsId) });
+    },
+  });
+}
+
+/** Remove a department that owes nothing. */
+export function useDeleteAuditDepartment(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteAuditDepartment(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: auditKeys.departments(wsId) });
+    },
+  });
+}
+
+/** Raise a 整改事项 from the engagement that found the problem. */
+export function useRaiseRemediation(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { projectId: string; data: RaiseRemediationRequest }) =>
+      api.raiseRemediation(input.projectId, input.data),
+    onSuccess: () => {
+      // Every filtered view of the ledger may now be wrong, and so is the
+      // department's item count.
+      void queryClient.invalidateQueries({ queryKey: auditKeys.all(wsId) });
+    },
+  });
+}
+
+/** Move a mis-routed item to the department that owns the fix. */
+export function useReassignRemediation(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { issueId: string; departmentId: string }) =>
+      api.updateRemediationDepartment(input.issueId, input.departmentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: auditKeys.all(wsId) });
     },
   });
 }

@@ -1,6 +1,7 @@
 import {
   Inbox,
   Stamp,
+  ClipboardCheck,
   MessageSquare,
   CircleUser,
   ListTodo,
@@ -35,6 +36,7 @@ import { resolveRouteIconName, type RouteIconName } from "@multica/core/paths";
 export const ROUTE_ICON_COMPONENTS: Record<RouteIconName, LucideIcon> = {
   Inbox,
   Stamp,
+  ClipboardCheck,
   MessageSquare,
   CircleUser,
   ListTodo,

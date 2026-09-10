@@ -22,6 +22,7 @@
 export type RouteIconName =
   | "Inbox"
   | "Stamp"
+  | "ClipboardCheck"
   | "MessageSquare"
   | "CircleUser"
   | "ListTodo"
@@ -47,6 +48,7 @@ export type RouteIconName =
 export type NavLabelKey =
   | "inbox"
   | "review_queue"
+  | "remediation"
   | "chat"
   | "my_issues"
   | "issues"
@@ -63,6 +65,7 @@ export type NavLabelKey =
 export type WorkspacePageKey =
   | "inbox"
   | "reviewQueue"
+  | "remediation"
   | "chat"
   | "myIssues"
   | "issues"
@@ -96,6 +99,11 @@ export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
   // thing from a filter over all issues, and burying it in the issue list is
   // how a reviewer never finds it — which is the failure this page exists for.
   reviewQueue: { segment: "review-queue", icon: "Stamp", navKey: "review_queue" },
+  // Shown only in an auditee workspace. The 整改台账 is the surface an internal
+  // audit function opens daily — chasing remediation is most of the job — and
+  // it is not a filter over the issue list: an item's department, deadline and
+  // verification are facts the issue list has no column for.
+  remediation: { segment: "remediation", icon: "ClipboardCheck", navKey: "remediation" },
   issues: { segment: "issues", icon: "ListTodo", navKey: "issues" },
   projects: { segment: "projects", icon: "FolderKanban", navKey: "projects" },
   autopilots: { segment: "autopilots", icon: "Zap", navKey: "autopilots" },

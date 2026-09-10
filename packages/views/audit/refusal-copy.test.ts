@@ -37,12 +37,19 @@ describe("refusal code", () => {
     // visible diff here rather than a silently untranslated toast.
     expect([...AUDIT_REFUSAL_CODES].sort()).toEqual([
       "agent_not_permitted",
+      "engagement_archived",
       "filed",
       "illegal_transition",
       "leaves_chain",
       "level_required",
+      "not_a_remediation_item",
+      "not_responsible",
+      "note_required",
       "reason_required",
+      "remediation_closed",
       "self_review",
+      "self_verification",
+      "verifier_required",
     ]);
   });
 });

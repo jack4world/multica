@@ -108,3 +108,76 @@ describe("review actions", () => {
     });
   });
 });
+
+// The ledger's steps come through the same component, and at 待验证 a verifier
+// is offered TWO steps that need free text — closing and sending back. A
+// component that assumed one would label the wrong button.
+describe("remediation actions", () => {
+  it("labels the ledger's steps in the reader's language", () => {
+    actions.mockReturnValue([
+      { event: "remediation_verified", to: "remediation_closed", requires_reason: true },
+      { event: "remediation_rejected", to: "remediating", requires_reason: true },
+    ]);
+    render(<ReviewActions wsId="ws-1" issueId="i-1" />);
+    expect(screen.getByRole("button", { name: "验证通过并关闭" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "退回整改" })).toBeInTheDocument();
+    expect(screen.queryByText("remediation_closed")).not.toBeInTheDocument();
+  });
+
+  it("asks the question that belongs to the step it opened", () => {
+    actions.mockReturnValue([
+      { event: "remediation_verified", to: "remediation_closed", requires_reason: true },
+      { event: "remediation_rejected", to: "remediating", requires_reason: true },
+    ]);
+    render(<ReviewActions wsId="ws-1" issueId="i-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "验证通过并关闭" }));
+    // 验证情况, not 退回理由: closing asks what was checked, and asking the
+    // wrong question is how a closure ends up recording nothing useful.
+    expect(screen.getByLabelText("验证情况")).toBeInTheDocument();
+  });
+
+  it("sends the note with the step the verifier chose", async () => {
+    actions.mockReturnValue([
+      { event: "remediation_verified", to: "remediation_closed", requires_reason: true },
+      { event: "remediation_rejected", to: "remediating", requires_reason: true },
+    ]);
+    render(<ReviewActions wsId="ws-1" issueId="i-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "退回整改" }));
+    fireEvent.change(screen.getByLabelText("退回理由"), {
+      target: { value: "整改材料只覆盖了两个月" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "退回整改" }));
+
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith(
+        expect.objectContaining({ to: "remediating", reason: "整改材料只覆盖了两个月" }),
+        expect.anything(),
+      );
+    });
+  });
+
+  it("will not close an item with no account of what was checked", () => {
+    actions.mockReturnValue([
+      { event: "remediation_verified", to: "remediation_closed", requires_reason: true },
+    ]);
+    render(<ReviewActions wsId="ws-1" issueId="i-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "验证通过并关闭" }));
+    expect(screen.getByRole("button", { name: "验证通过并关闭" })).toBeDisabled();
+  });
+
+  it("starts work without asking for anything", () => {
+    // The one ledger step that asserts nothing, so demanding text for it would
+    // be friction with no reader.
+    actions.mockReturnValue([
+      { event: "remediation_started", to: "remediating", requires_reason: false },
+    ]);
+    render(<ReviewActions wsId="ws-1" issueId="i-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "开始整改" }));
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "remediating" }),
+      expect.anything(),
+    );
+  });
+});

@@ -23,6 +23,7 @@ export function refusalCode(err: unknown): AuditRefusalCode | undefined {
  * to the server's own sentence instead of rendering an empty toast.
  */
 export const AUDIT_REFUSAL_CODES = [
+  // The review chain.
   "level_required",
   "self_review",
   "filed",
@@ -30,6 +31,15 @@ export const AUDIT_REFUSAL_CODES = [
   "illegal_transition",
   "leaves_chain",
   "reason_required",
+  // The 整改台账.
+  "verifier_required",
+  "self_verification",
+  "not_responsible",
+  "remediation_closed",
+  "note_required",
+  "not_a_remediation_item",
+  // Both, once the engagement's file is closed.
+  "engagement_archived",
 ] as const;
 
 export type AuditRefusalCode = (typeof AUDIT_REFUSAL_CODES)[number];
