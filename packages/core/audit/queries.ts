@@ -37,6 +37,7 @@ export const auditKeys = {
   // and serving that under 03/01's key would show one drawer's contents in
   // another.
   documents: (wsId: string, path: string) => ["audit", wsId, "documents", path] as const,
+  withdrawnDocuments: (wsId: string) => ["audit", wsId, "documents", "withdrawn"] as const,
 };
 
 export function auditModeOptions(wsId: string) {
@@ -103,5 +104,12 @@ export function auditDocumentsOptions(wsId: string, categoryPath: string) {
   return queryOptions({
     queryKey: auditKeys.documents(wsId, categoryPath),
     queryFn: (): Promise<AuditDocument[]> => api.listAuditDocuments(categoryPath),
+  });
+}
+
+export function withdrawnAuditDocumentsOptions(wsId: string) {
+  return queryOptions({
+    queryKey: auditKeys.withdrawnDocuments(wsId),
+    queryFn: (): Promise<AuditDocument[]> => api.listWithdrawnAuditDocuments(),
   });
 }

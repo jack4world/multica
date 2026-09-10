@@ -13,6 +13,7 @@ import {
   auditKeys,
   auditCategoriesOptions,
   auditDocumentsOptions,
+  withdrawnAuditDocumentsOptions,
   auditReportOptions,
   auditReportsOptions,
   auditModeOptions,
@@ -284,5 +285,13 @@ export function useWithdrawAuditDocument(wsId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: auditKeys.all(wsId) });
     },
+  });
+}
+
+/** What the library used to hold. */
+export function useWithdrawnAuditDocuments(wsId: string, enabled = true) {
+  return useQuery({
+    ...withdrawnAuditDocumentsOptions(wsId),
+    enabled: Boolean(wsId) && enabled,
   });
 }

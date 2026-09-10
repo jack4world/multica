@@ -73,6 +73,57 @@ type AuditDocumentResponse struct {
 	UploaderType string `json:"uploader_type"`
 	UploaderID   string `json:"uploader_id"`
 	CreatedAt    string `json:"created_at"`
+	// Set only on a withdrawn document. Absent everywhere else, because the
+	// ordinary library listing never carries withdrawn material.
+	WithdrawnAt      string `json:"withdrawn_at,omitempty"`
+	WithdrawnBy      string `json:"withdrawn_by,omitempty"`
+	WithdrawalReason string `json:"withdrawal_reason,omitempty"`
+}
+
+// ListWithdrawnAuditDocuments returns what the library used to hold.
+//
+// Withdrawal keeps the row and writes the trail, but without this read the
+// library still could not answer "was anything taken out of here?" — the
+// question the whole design exists to make answerable. Auditee membership, like
+// every other read of the library: what was withdrawn, and why, is part of the
+// file rather than a privileged view of it.
+func (h *Handler) ListWithdrawnAuditDocuments(w http.ResponseWriter, r *http.Request) {
+	_, workspaceID, ok := h.requireAuditeeMember(w, r)
+	if !ok {
+		return
+	}
+	wsUUID, ok := parseUUIDOrBadRequest(w, workspaceID, "workspace id")
+	if !ok {
+		return
+	}
+	rows, err := h.Queries.ListWithdrawnAuditDocuments(r.Context(), db.ListWithdrawnAuditDocumentsParams{
+		WorkspaceID: wsUUID,
+		Lim:         auditDocumentPageLimit,
+	})
+	if err != nil {
+		slog.Warn("ListWithdrawnAuditDocuments failed", append(logger.RequestAttrs(r), "error", err)...)
+		writeError(w, http.StatusInternalServerError, "failed to read the withdrawn material")
+		return
+	}
+	resp := make([]AuditDocumentResponse, 0, len(rows))
+	for _, row := range rows {
+		item := AuditDocumentResponse{
+			ID: uuidToString(row.ID), CategoryPath: row.CategoryPath, Title: row.Title,
+			AttachmentID: uuidToString(row.AttachmentID),
+			Filename:     row.Filename,
+			ContentType:  row.ContentType, SizeBytes: row.SizeBytes,
+			UploaderType: row.UploaderType, UploaderID: uuidToString(row.UploaderID),
+			CreatedAt:   timestampToString(row.CreatedAt),
+			WithdrawnAt: timestampToString(row.WithdrawnAt),
+			// No download capability: the material is out of the file. What
+			// this view answers is that it WAS here and why it went, not a way
+			// to keep reading it.
+			WithdrawnBy:      uuidToString(row.WithdrawnBy),
+			WithdrawalReason: row.WithdrawalReason.String,
+		}
+		resp = append(resp, item)
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // requireAuditeeMember gates every library read and write on membership of the

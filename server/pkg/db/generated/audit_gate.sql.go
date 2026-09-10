@@ -819,6 +819,80 @@ func (q *Queries) ListTrailForProject(ctx context.Context, arg ListTrailForProje
 	return items, nil
 }
 
+const listWithdrawnAuditDocuments = `-- name: ListWithdrawnAuditDocuments :many
+SELECT d.id, d.workspace_id, d.attachment_id, d.category_path, d.title, d.uploader_type, d.uploader_id, d.created_at, d.updated_at, d.withdrawn_at, d.withdrawn_by, d.withdrawal_reason, a.filename, a.content_type, a.size_bytes
+FROM audit_document d
+JOIN attachment a ON a.id = d.attachment_id
+WHERE d.workspace_id = $1
+  AND d.withdrawn_at IS NOT NULL
+ORDER BY d.withdrawn_at DESC
+LIMIT $2
+`
+
+type ListWithdrawnAuditDocumentsParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Lim         int32       `json:"lim"`
+}
+
+type ListWithdrawnAuditDocumentsRow struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	AttachmentID     pgtype.UUID        `json:"attachment_id"`
+	CategoryPath     string             `json:"category_path"`
+	Title            string             `json:"title"`
+	UploaderType     string             `json:"uploader_type"`
+	UploaderID       pgtype.UUID        `json:"uploader_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	WithdrawnAt      pgtype.Timestamptz `json:"withdrawn_at"`
+	WithdrawnBy      pgtype.UUID        `json:"withdrawn_by"`
+	WithdrawalReason pgtype.Text        `json:"withdrawal_reason"`
+	Filename         string             `json:"filename"`
+	ContentType      string             `json:"content_type"`
+	SizeBytes        int64              `json:"size_bytes"`
+}
+
+// What the library used to hold and no longer does.
+//
+// Without this read the withdrawal record exists only in the trail, and the
+// library itself cannot answer "was anything taken out of here?" — which is the
+// question the whole withdrawal design exists to make answerable.
+func (q *Queries) ListWithdrawnAuditDocuments(ctx context.Context, arg ListWithdrawnAuditDocumentsParams) ([]ListWithdrawnAuditDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, listWithdrawnAuditDocuments, arg.WorkspaceID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWithdrawnAuditDocumentsRow{}
+	for rows.Next() {
+		var i ListWithdrawnAuditDocumentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AttachmentID,
+			&i.CategoryPath,
+			&i.Title,
+			&i.UploaderType,
+			&i.UploaderID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WithdrawnAt,
+			&i.WithdrawnBy,
+			&i.WithdrawalReason,
+			&i.Filename,
+			&i.ContentType,
+			&i.SizeBytes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkpaperSignatures = `-- name: ListWorkpaperSignatures :many
 SELECT actor_id, details->>'level' AS level
 FROM activity_log

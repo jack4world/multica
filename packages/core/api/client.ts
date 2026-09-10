@@ -3873,6 +3873,14 @@ export class ApiClient {
     });
   }
 
+  /** What the library used to hold, and why each piece went. */
+  async listWithdrawnAuditDocuments(): Promise<AuditDocument[]> {
+    const raw = await this.fetch<unknown>(`/api/audit/documents/withdrawn`);
+    return parseWithFallback(raw, AuditDocumentListSchema, [], {
+      endpoint: "GET /api/audit/documents/withdrawn",
+    });
+  }
+
   async fileAuditDocument(data: {
     attachment_id: string;
     category_path: string;

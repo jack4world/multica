@@ -175,4 +175,8 @@ export interface AuditDocument {
   uploader_type: string;
   uploader_id: string;
   created_at: string;
+  /** Set only on a withdrawn document — who took it out of the file, when, why. */
+  withdrawn_at?: string;
+  withdrawn_by?: string;
+  withdrawal_reason?: string;
 }

@@ -382,3 +382,46 @@ func TestWithdrawingADocumentLeavesTheRecordAndTakesARank(t *testing.T) {
 		t.Errorf("the second withdrawal rewrote the reason: %q", stillReason)
 	}
 }
+
+// Withdrawal keeps the row and writes the trail, but the library still has to
+// be able to say "this was here and it went, because R". Without a read for it,
+// that answer lives only in the trail — and a claim the product cannot show is
+// a claim it does not really make.
+func TestTheLibraryCanSayWhatWasWithdrawn(t *testing.T) {
+	f := newAuditFixture(t)
+	var doc AuditDocumentResponse
+	f.fileDoc(t, "01", "旧版银行对账单", f.attachmentIn(t, "old-stmt.pdf")).
+		Want(http.StatusCreated).JSON(&doc)
+	f.fileDoc(t, "01", "在册凭证", f.attachmentIn(t, "kept.pdf")).Want(http.StatusCreated)
+
+	del := auditRequest(http.MethodDelete, "/api/audit/documents/"+doc.ID, f.workspaceID,
+		map[string]any{"reason": "客户提供的版本有误，已换新版归入 01"})
+	testutil.Call(t, testHandler.DeleteAuditDocument, withURLParam(del, "id", doc.ID)).
+		Want(http.StatusNoContent)
+
+	var withdrawn []AuditDocumentResponse
+	testutil.Call(t, testHandler.ListWithdrawnAuditDocuments,
+		auditRequest(http.MethodGet, "/api/audit/documents/withdrawn", f.workspaceID, nil)).
+		Want(http.StatusOK).JSON(&withdrawn)
+
+	var found *AuditDocumentResponse
+	for i := range withdrawn {
+		if withdrawn[i].ID == doc.ID {
+			found = &withdrawn[i]
+		}
+		if withdrawn[i].Title == "在册凭证" {
+			t.Error("a document still in the library is listed as withdrawn")
+		}
+	}
+	if found == nil {
+		t.Fatal("the withdrawn document is not listed anywhere; the record exists only in the trail")
+	}
+	if found.WithdrawalReason == "" || found.WithdrawnAt == "" || found.WithdrawnBy == "" {
+		t.Errorf("withdrawn entry = %+v, want who, when and why", found)
+	}
+	// No download capability: the material is out of the file. This view says
+	// it WAS here, not "here it still is".
+	if found.DownloadURL != "" {
+		t.Errorf("withdrawn document still carries a download link: %q", found.DownloadURL)
+	}
+}
