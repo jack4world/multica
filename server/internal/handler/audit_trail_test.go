@@ -141,21 +141,28 @@ func TestReturningAWorkpaperRecordsTheReasonWhenGiven(t *testing.T) {
 	}
 }
 
-// Until a client can send one, a rejection without a reason has to work.
-func TestReturningAWorkpaperWorksWithoutAReason(t *testing.T) {
+// The rule is enforced through the API, not only in the form. The form is one
+// caller; the CLI and every future client are the others.
+//
+// This test exists because the requirement was once shipped as a disabled
+// button alone, while the change that shipped it claimed the rule was back in
+// the gate. It was not, and a rejection with no reason went through.
+func TestReturningAWorkpaperWithoutAReasonIsRefusedThroughTheAPI(t *testing.T) {
 	f := newAuditFixture(t)
 	wp := f.workpaper(t, auditmode.StatusDrafting)
 	dbfx.Cleanup(t, `DELETE FROM activity_log WHERE issue_id = $1`, wp)
 	f.setStatus(t, wp, auditmode.StatusReviewL1, testUserID).Want(http.StatusOK)
 
-	f.setStatus(t, wp, auditmode.StatusDrafting, f.reviewerUsers[auditgate.LevelL1]).Want(http.StatusOK)
+	f.setStatus(t, wp, auditmode.StatusDrafting, f.reviewerUsers[auditgate.LevelL1]).
+		Want(http.StatusBadRequest)
 
-	if got := f.statusOf(t, wp); got != auditmode.StatusDrafting {
-		t.Errorf("status = %q, want the workpaper back with its preparer", got)
+	if got := f.statusOf(t, wp); got != auditmode.StatusReviewL1 {
+		t.Errorf("status = %q, want the refused write to have changed nothing", got)
 	}
-	entries := f.trailFor(t, wp)
-	if last := entries[len(entries)-1]; last.Action != string(auditgate.EventReviewRejected) {
-		t.Errorf("action = %q, want the rejection recorded even without a reason", last.Action)
+	for _, e := range f.trailFor(t, wp) {
+		if e.Action == string(auditgate.EventReviewRejected) {
+			t.Error("a rejection explaining nothing was written to the trail")
+		}
 	}
 }
 
