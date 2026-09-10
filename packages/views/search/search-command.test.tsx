@@ -1,9 +1,9 @@
 import { act, type ReactNode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@multica/core/i18n/react";
-import { WORKSPACE_PAGES } from "@multica/core/paths";
+import { AUDIT_ONLY_PAGE_KEYS, WORKSPACE_PAGES } from "@multica/core/paths";
 import { SearchCommand } from "./search-command";
 import { useSearchStore } from "./search-store";
 import enCommon from "../locales/en/common.json";
@@ -198,6 +198,14 @@ vi.mock("@multica/core/issues/stores", () => {
 
 vi.mock("@multica/core", () => ({
   useWorkspaceId: () => "ws-test",
+}));
+
+// The audit pages exist only in an auditee workspace. Enabled by default here
+// so the parity assertion below still covers every page in the registry; the
+// gate itself is pinned by its own test at the bottom of this file.
+const auditModeEnabled = { value: true };
+vi.mock("@multica/core/audit", () => ({
+  useAuditMode: () => ({ data: { enabled: auditModeEnabled.value, enabled_at: null } }),
 }));
 
 vi.mock("@multica/core/paths", async (importOriginal) => {
@@ -1306,5 +1314,42 @@ describe("SearchCommand", () => {
       expect(mockPush).not.toHaveBeenCalled();
       expect(useSearchStore.getState().open).toBe(true);
     });
+  });
+});
+
+describe("SearchCommand audit pages", () => {
+  afterEach(() => {
+    auditModeEnabled.value = true;
+  });
+
+  it("does not offer the audit pages in an ordinary workspace", async () => {
+    // The failure this prevents: searching 整改台账 in a workspace that is not
+    // an auditee lands the reader on a page that renders nothing, which reads
+    // as a broken palette rather than as a feature they do not have.
+    auditModeEnabled.value = false;
+    const user = userEvent.setup();
+    renderSearch();
+    const input = screen.getByPlaceholderText("Type a command or search...");
+
+    for (const key of AUDIT_ONLY_PAGE_KEYS) {
+      const label = enLayout.nav[WORKSPACE_PAGES[key].navKey];
+      await user.clear(input);
+      await user.type(input, label);
+      expect(
+        screen.queryByText((_, el) => el?.textContent === label && el?.tagName === "SPAN"),
+      ).not.toBeInTheDocument();
+    }
+  });
+
+  it("offers them once the workspace is an auditee", async () => {
+    auditModeEnabled.value = true;
+    const user = userEvent.setup();
+    renderSearch();
+    const input = screen.getByPlaceholderText("Type a command or search...");
+    const label = enLayout.nav[WORKSPACE_PAGES.remediation.navKey];
+    await user.type(input, label);
+    expect(
+      await screen.findByText((_, el) => el?.textContent === label && el?.tagName === "SPAN"),
+    ).toBeInTheDocument();
   });
 });

@@ -157,7 +157,9 @@ const personalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "chat", labelKey: "chat" },
 ];
 
-// Shown only in an auditee workspace. It sits with the personal items because
+// Shown only in an auditee workspace, gated on the same AUDIT_ONLY_PAGE_KEYS
+// the command palette uses so the two surfaces cannot disagree about which
+// pages are audit pages. The review queue sits with the personal items because
 // it answers "what is waiting on ME" — the same question the inbox answers —
 // and because a reviewer has no other way to learn a workpaper is waiting: it
 // stays owned by its preparer while it is being reviewed.

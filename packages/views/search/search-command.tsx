@@ -38,7 +38,8 @@ import {
 } from "@multica/core/issues/stores";
 import { issueDetailOptions, issueTimelineOptions } from "@multica/core/issues/queries";
 import { useWorkspaceId } from "@multica/core";
-import { useWorkspacePaths, WORKSPACE_PAGES } from "@multica/core/paths";
+import { useAuditMode } from "@multica/core/audit";
+import { AUDIT_ONLY_PAGE_KEYS, useWorkspacePaths, WORKSPACE_PAGES } from "@multica/core/paths";
 import type { WorkspacePageKey, WorkspacePaths } from "@multica/core/paths";
 import { useModalStore } from "@multica/core/modals";
 import { createShortcutChord } from "@multica/core/shortcuts";
@@ -316,14 +317,22 @@ export function SearchCommand() {
   // copy under `search.pages`: one translated string per page, so the palette
   // can never disagree with the sidebar about what a page is called.
   const { t: tNav } = useT("layout");
+  const paletteWsId = useWorkspaceId();
+  const { data: auditMode } = useAuditMode(paletteWsId);
+  // The audit pages exist only in an auditee workspace. Offering one anywhere
+  // else sends the reader to a page that renders nothing, which reads as a
+  // broken palette rather than as a feature they do not have.
+  const auditModeEnabled = auditMode?.enabled === true;
   const navPages = useMemo<NavPage[]>(
     () =>
-      NAV_PAGE_KEYS.map((key) => ({
+      NAV_PAGE_KEYS.filter(
+        (key) => auditModeEnabled || !AUDIT_ONLY_PAGE_KEYS.includes(key),
+      ).map((key) => ({
         key,
         label: tNav(($) => $.nav[WORKSPACE_PAGES[key].navKey]),
         keywords: PAGE_KEYWORDS[key],
       })),
-    [tNav],
+    [tNav, auditModeEnabled],
   );
   const { pathname, getShareableUrl } = useNavigation();
   const intentNavigate = useIntentNavigate();

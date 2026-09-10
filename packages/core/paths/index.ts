@@ -7,6 +7,7 @@ export type { WorkspacePaths } from "./paths";
 export { RESERVED_SLUGS, isReservedSlug } from "./reserved-slugs";
 export {
   WORKSPACE_PAGES,
+  AUDIT_ONLY_PAGE_KEYS,
   DEFAULT_ROUTE_ICON_NAME,
   resolveRouteIconName,
   pageForSegment,
