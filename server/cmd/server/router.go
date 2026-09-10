@@ -1973,6 +1973,17 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// actions come from the same matrix that enforces the chain, and
 			// the queue from the same reviewer-rank table the gate consults.
 			r.Get("/api/audit/review-queue", h.ListReviewQueue)
+
+			// The auditee's document library. Reads are open to any member —
+			// access is auditee membership and nothing else (ADR-0001). Editing
+			// the filing scheme is owner/admin; removing material is human-only,
+			// gated inside the handlers.
+			r.Get("/api/audit/categories", h.ListAuditCategories)
+			r.Post("/api/audit/categories", h.CreateAuditCategory)
+			r.Delete("/api/audit/categories/{path}", h.DeleteAuditCategory)
+			r.Get("/api/audit/documents", h.ListAuditDocuments)
+			r.Post("/api/audit/documents", h.FileAuditDocument)
+			r.Delete("/api/audit/documents/{id}", h.DeleteAuditDocument)
 			r.Get("/api/issues/{id}/audit-actions", h.ListAuditActions)
 
 			r.Route("/api/audit-mode", func(r chi.Router) {

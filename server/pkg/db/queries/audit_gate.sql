@@ -163,3 +163,95 @@ VALUES (
 ON CONFLICT (issue_id) DO UPDATE
 SET handover_reminded_at = now(),
     updated_at = now();
+
+-- name: SeedAuditDocumentCategory :exec
+-- Idempotent, so the same seeding serves audit-mode enable and an explicit
+-- action on an auditee that predates the scheme. Only the seeded NAME is
+-- refreshed; a client that renamed a standard drawer keeps its own name because
+-- position and any later edits are left alone.
+INSERT INTO audit_document_category (workspace_id, path, name, is_standard, position)
+VALUES (
+    sqlc.arg('workspace_id')::uuid,
+    sqlc.arg('path')::text,
+    sqlc.arg('name')::text,
+    TRUE,
+    sqlc.arg('position')::float8
+)
+ON CONFLICT (workspace_id, path) DO NOTHING;
+
+-- name: CreateAuditDocumentCategory :one
+INSERT INTO audit_document_category (workspace_id, path, name, position)
+VALUES (
+    sqlc.arg('workspace_id')::uuid,
+    sqlc.arg('path')::text,
+    sqlc.arg('name')::text,
+    sqlc.arg('position')::float8
+)
+RETURNING *;
+
+-- name: ListAuditDocumentCategories :many
+-- The whole tree, in filing order. Fixed-width segments are what make a lexical
+-- sort the order an auditor expects.
+SELECT * FROM audit_document_category
+WHERE workspace_id = $1
+ORDER BY path ASC;
+
+-- name: GetAuditDocumentCategory :one
+SELECT * FROM audit_document_category
+WHERE workspace_id = $1 AND path = $2;
+
+-- name: CountCategoryChildren :one
+-- Sub-categories strictly below a path. The pattern carries the separator: a
+-- prefix test without it counts 020 as a child of 02.
+SELECT COUNT(*)::bigint FROM audit_document_category
+WHERE workspace_id = $1 AND path LIKE sqlc.arg('descendant_pattern')::text;
+
+-- name: CountDocumentsUnderCategory :one
+-- This category AND everything beneath it, which is what "can I delete this"
+-- has to ask: orphaning material by tidying the tree is silent.
+SELECT COUNT(*)::bigint FROM audit_document
+WHERE workspace_id = $1
+  AND (category_path = sqlc.arg('path')::text
+       OR category_path LIKE sqlc.arg('descendant_pattern')::text);
+
+-- name: DeleteAuditDocumentCategory :execrows
+DELETE FROM audit_document_category
+WHERE workspace_id = $1 AND path = $2;
+
+-- name: CreateAuditDocument :one
+INSERT INTO audit_document (workspace_id, attachment_id, category_path, title, uploader_type, uploader_id)
+VALUES (
+    sqlc.arg('workspace_id')::uuid,
+    sqlc.arg('attachment_id')::uuid,
+    sqlc.arg('category_path')::text,
+    sqlc.arg('title')::text,
+    sqlc.arg('uploader_type')::text,
+    sqlc.arg('uploader_id')::uuid
+)
+RETURNING *;
+
+-- name: ListAuditDocumentsUnderCategory :many
+-- Asking for a parent returns everything beneath it at any depth: an auditor
+-- looking for a voucher should not have to walk the tree to find it.
+SELECT d.*, a.filename, a.url, a.content_type, a.size_bytes
+FROM audit_document d
+JOIN attachment a ON a.id = d.attachment_id
+WHERE d.workspace_id = $1
+  AND (d.category_path = sqlc.arg('path')::text
+       OR d.category_path LIKE sqlc.arg('descendant_pattern')::text)
+ORDER BY d.category_path ASC, d.created_at DESC
+LIMIT sqlc.arg('lim');
+
+-- name: GetAuditDocument :one
+SELECT * FROM audit_document WHERE id = $1 AND workspace_id = $2;
+
+-- name: MoveAuditDocument :one
+UPDATE audit_document
+SET category_path = sqlc.arg('category_path')::text,
+    title = COALESCE(sqlc.narg('title'), title),
+    updated_at = now()
+WHERE id = sqlc.arg('id')::uuid AND workspace_id = sqlc.arg('workspace_id')::uuid
+RETURNING *;
+
+-- name: DeleteAuditDocument :execrows
+DELETE FROM audit_document WHERE id = $1 AND workspace_id = $2;
