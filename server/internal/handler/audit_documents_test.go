@@ -96,6 +96,27 @@ func TestSeedingTheSchemeTwiceDoesNotDoubleIt(t *testing.T) {
 	}
 }
 
+// An auditee enabled BEFORE the library existed has no categories, and no way
+// to get any: filing needs a category, and creating one needs its parent. The
+// enable path is the only way in, so it has to seed even when the workspace is
+// already an auditee — which it did not, because it returned early.
+func TestAnAuditeeEnabledBeforeTheLibraryCanStillGetItsScheme(t *testing.T) {
+	f := newAuditFixture(t)
+	// The state such a workspace is in: audit mode on, no filing scheme.
+	dbfx.Exec(t, `DELETE FROM audit_document_category WHERE workspace_id = $1`, f.workspaceID)
+	if n := len(f.categories(t)); n != 0 {
+		t.Fatalf("setup: categories = %d, want 0", n)
+	}
+
+	enableAuditMode(t, f.workspaceID, nil).Want(http.StatusOK)
+
+	if n := len(f.categories(t)); n != len(auditdocs.StandardScheme()) {
+		t.Errorf("categories = %d after re-enabling, want the %d seeded — an auditee "+
+			"that predates the library would otherwise be stuck with nowhere to file",
+			n, len(auditdocs.StandardScheme()))
+	}
+}
+
 // THE property the path storage exists for: asking for a parent returns
 // everything beneath it, at any depth.
 func TestAskingForAParentReturnsEverythingBeneathIt(t *testing.T) {
