@@ -122,6 +122,20 @@ export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
   settings: { segment: "settings", icon: "Settings", navKey: "settings" },
 };
 
+/**
+ * The pages that exist only in an auditee workspace.
+ *
+ * Listed once, here beside the registry, so the sidebar and the command
+ * palette gate on the same set rather than each carrying its own idea of which
+ * pages are audit pages. A surface that offers one of these in an ordinary
+ * workspace sends the reader to a page that renders nothing.
+ */
+export const AUDIT_ONLY_PAGE_KEYS: readonly WorkspacePageKey[] = [
+  "reviewQueue",
+  "remediation",
+  "auditDocuments",
+];
+
 /** Reverse lookup: route segment → page key. */
 const PAGE_BY_SEGMENT: Record<string, WorkspacePageKey> = Object.fromEntries(
   (Object.keys(WORKSPACE_PAGES) as WorkspacePageKey[]).map((key) => [
