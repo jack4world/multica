@@ -210,11 +210,12 @@ type AuditRole struct {
 }
 
 type AuditWorkpaper struct {
-	IssueID     pgtype.UUID        `json:"issue_id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	PreparerID  pgtype.UUID        `json:"preparer_id"`
-	SubmittedAt pgtype.Timestamptz `json:"submitted_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	IssueID            pgtype.UUID        `json:"issue_id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	PreparerID         pgtype.UUID        `json:"preparer_id"`
+	SubmittedAt        pgtype.Timestamptz `json:"submitted_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	HandoverRemindedAt pgtype.Timestamptz `json:"handover_reminded_at"`
 }
 
 type Autopilot struct {
