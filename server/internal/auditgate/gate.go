@@ -14,6 +14,7 @@ package auditgate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/multica-ai/multica/server/internal/auditmode"
 )
@@ -76,6 +77,7 @@ const (
 	DenyFiled             DenyCode = "filed"
 	DenyAgent             DenyCode = "agent_not_permitted"
 	DenyLeavesChain       DenyCode = "leaves_chain"
+	DenyReasonRequired    DenyCode = "reason_required"
 )
 
 // Input is everything the decision depends on. All values, all supplied by the
@@ -351,13 +353,18 @@ func decideChainStep(in Input, required Level) Decision {
 			"you prepared this workpaper and cannot review it; hand it to another %s", required)
 	}
 	if in.To == auditmode.StatusDrafting {
-		// A rejection SHOULD carry a reason — telling a preparer their work does
-		// not stand without saying why leaves them exactly where this control
-		// exists to stop them being. It is not enforced here yet, and that is
-		// deliberate: no client can send one today, and a server-side rule that
-		// no client can satisfy would not make rejections better, it would make
-		// them impossible, stranding every workpaper that fails review. The
-		// requirement lands with the input that lets a reviewer type one.
+		// A rejection needs a reason. Telling a preparer their work does not
+		// stand without saying why leaves them exactly where this control exists
+		// to stop them being, and the trail entry then records a rejection that
+		// explains nothing to whoever reads the file later.
+		//
+		// Enforced HERE, not only in the form: the form is one caller. The CLI,
+		// the API and every future client are the others, and a rule that lives
+		// in a disabled button is a rule the next caller does not have.
+		if strings.TrimSpace(in.Reason) == "" {
+			return deny(DenyReasonRequired,
+				"returning a workpaper to its preparer needs a reason; they have no other way to know what to fix")
+		}
 		return record(EventReviewRejected, required)
 	}
 	if in.To == auditmode.StatusFiled {

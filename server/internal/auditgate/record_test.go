@@ -113,20 +113,59 @@ func TestNonTransitionsProduceNoRecord(t *testing.T) {
 	}
 }
 
-// A rejection SHOULD carry a reason, and the trail records one when it is
-// given. It is not yet REQUIRED, and that is a sequencing decision rather than
-// an oversight: no client can send one today, so enforcing it here would not
-// improve rejections — it would make them impossible, stranding every workpaper
-// that fails review with no way back to its preparer.
-func TestARejectionWithoutAReasonStillGoesThrough(t *testing.T) {
+// A rejection needs a reason, enforced in the GATE rather than only in the
+// form. The form is one caller; the CLI, the API and every future client are
+// the others, and a rule that lives in a disabled button is a rule the next
+// caller does not have.
+//
+// This test exists because that is exactly what happened: the requirement was
+// shipped as a disabled button and a `requires_reason` flag, the change that
+// shipped it claimed the rule was "back in the gate", and it was not. A
+// rejection with no reason went through and the trail recorded one explaining
+// nothing.
+func TestARejectionNeedsAReason(t *testing.T) {
 	in := base()
 	in.From, in.To, in.ActorLevel, in.Reason = auditmode.StatusReviewL2, auditmode.StatusDrafting, LevelL2, ""
 	d := Decide(in)
-	if !d.Allowed {
-		t.Fatalf("a rejection was blocked for want of a reason no client can send: %s", d.Reason)
+	if d.Allowed {
+		t.Fatal("a rejection with no reason was allowed")
 	}
-	if d.Event != EventReviewRejected {
-		t.Errorf("event = %q, want %q", d.Event, EventReviewRejected)
+	if d.Code != DenyReasonRequired {
+		t.Errorf("code = %q, want %q", d.Code, DenyReasonRequired)
+	}
+}
+
+// Whitespace is not a reason.
+func TestABlankReasonIsNotAReason(t *testing.T) {
+	in := base()
+	in.From, in.To, in.ActorLevel, in.Reason = auditmode.StatusReviewL1, auditmode.StatusDrafting, LevelL1, "   \n\t "
+	if d := Decide(in); d.Allowed {
+		t.Error("whitespace satisfied the reason requirement")
+	}
+}
+
+// Only rejections. Passing, filing, submitting and cancelling all go through
+// without one.
+func TestNoOtherTransitionNeedsAReason(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		from  string
+		to    string
+		level Level
+	}{
+		{"pass", auditmode.StatusReviewL1, auditmode.StatusReviewL2, LevelL1},
+		{"file", auditmode.StatusReviewL3, auditmode.StatusFiled, LevelL3},
+		{"submit", auditmode.StatusDrafting, auditmode.StatusReviewL1, ""},
+		{"cancel", auditmode.StatusReviewL2, "cancelled", LevelL1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := base()
+			in.From, in.To, in.ActorLevel, in.Reason = tc.from, tc.to, tc.level, ""
+			in.ActorMemberID = other
+			if d := Decide(in); !d.Allowed {
+				t.Fatalf("%s denied for want of a reason: %s", tc.name, d.Reason)
+			}
+		})
 	}
 }
 

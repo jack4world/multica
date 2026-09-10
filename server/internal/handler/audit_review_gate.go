@@ -128,6 +128,10 @@ func writeReviewGateError(w http.ResponseWriter, err error) bool {
 	switch denial.decision.Code {
 	case auditgate.DenyLevelRequired, auditgate.DenySelfReview, auditgate.DenyAgent:
 		status = http.StatusForbidden
+	case auditgate.DenyReasonRequired:
+		// A missing field is a bad request, not a conflict or a permission
+		// problem: the caller can fix it by sending one.
+		status = http.StatusBadRequest
 	}
 	// The CODE, not just the sentence. The client maps it to copy in the
 	// reader's language; without it a Chinese-locale auditor is shown an
