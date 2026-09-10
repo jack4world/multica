@@ -6,6 +6,7 @@ import {
   useCreateAuditCategory,
   useDeleteAuditCategory,
   useWithdrawAuditDocument,
+  useWithdrawnAuditDocuments,
   useFileAuditDocument,
 } from "@multica/core/audit";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -37,6 +38,10 @@ export function DocumentLibraryPage() {
   const enabled = auditMode?.enabled === true;
   const { data: categories = [], isPending } = useAuditCategories(wsId, enabled);
   const [selected, setSelected] = useState("");
+  // The library has to be able to say what it used to hold. Withdrawal keeps
+  // the row and writes the trail; without somewhere to read it, that answer
+  // lives only in the trail and the product cannot make the claim.
+  const [showWithdrawn, setShowWithdrawn] = useState(false);
 
   // The first top-level drawer, until someone picks another. A library that
   // opens on nothing makes the reader's first act a click that teaches them
@@ -65,12 +70,21 @@ export function DocumentLibraryPage() {
             />
           </nav>
           <div className="min-w-0 flex-1">
-            {current === "" ? (
+            {showWithdrawn ? (
+              <WithdrawnMaterial wsId={wsId} onBack={() => setShowWithdrawn(false)} />
+            ) : current === "" ? (
               <p className="text-body text-muted-foreground">
                 {t(($) => $.audit.library.select_drawer)}
               </p>
             ) : (
-              <DrawerContents wsId={wsId} categoryPath={current} categories={categories} />
+              <>
+                <DrawerContents wsId={wsId} categoryPath={current} categories={categories} />
+                <div className="mt-4">
+                  <Button size="sm" variant="ghost" onClick={() => setShowWithdrawn(true)}>
+                    {t(($) => $.audit.library.withdrawn_show)}
+                  </Button>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -393,4 +407,53 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * What the library used to hold.
+ *
+ * No download link on any row: the material is out of the file. What this view
+ * answers is that it WAS here and why it went — which is the whole point of
+ * withdrawing rather than deleting.
+ */
+function WithdrawnMaterial({ wsId, onBack }: { wsId: string; onBack: () => void }) {
+  const { t } = useT("issues");
+  const { data: documents = [], isPending } = useWithdrawnAuditDocuments(wsId);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <h2 className="text-body font-semibold">{t(($) => $.audit.library.withdrawn_title)}</h2>
+        <Button size="sm" variant="ghost" className="ml-auto" onClick={onBack}>
+          {t(($) => $.audit.library.withdrawn_hide)}
+        </Button>
+      </div>
+      {isPending ? (
+        <p className="text-body text-muted-foreground">{t(($) => $.audit.library.loading)}</p>
+      ) : documents.length === 0 ? (
+        <p className="text-body text-muted-foreground">
+          {t(($) => $.audit.library.withdrawn_empty)}
+        </p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-border/60">
+          {documents.map((doc: AuditDocument) => (
+            <li key={doc.id} className="flex flex-col gap-1 py-3">
+              <span className="flex items-center gap-2">
+                <span className="font-medium line-through decoration-muted-foreground">
+                  {doc.title}
+                </span>
+                <span className="text-caption text-muted-foreground tabular-nums">
+                  {doc.category_path}
+                </span>
+              </span>
+              <span className="text-caption text-muted-foreground">
+                {t(($) => $.audit.library.withdrawn_at)} {doc.withdrawn_at?.slice(0, 10) ?? ""} ·{" "}
+                {t(($) => $.audit.library.withdrawn_reason_label)}: {doc.withdrawal_reason ?? ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }

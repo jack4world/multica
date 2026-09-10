@@ -1046,7 +1046,13 @@
       "withdraw_placeholder": "为什么撤下这份资料？",
       "withdraw_confirm": "确认撤下",
       "withdraw_cancel": "取消",
-      "withdraw_failed": "撤下没能完成。"
+      "withdraw_failed": "撤下没能完成。",
+      "withdrawn_title": "已撤下的资料",
+      "withdrawn_show": "查看已撤下",
+      "withdrawn_hide": "返回在册资料",
+      "withdrawn_empty": "没有资料被撤下过。",
+      "withdrawn_at": "撤下于",
+      "withdrawn_reason_label": "撤下原因"
     }
   }
 }

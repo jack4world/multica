@@ -9,6 +9,7 @@ export {
   auditReportOptions,
   auditCategoriesOptions,
   auditDocumentsOptions,
+  withdrawnAuditDocumentsOptions,
 } from "./queries";
 export {
   useAuditMode,
@@ -32,4 +33,5 @@ export {
   useDeleteAuditCategory,
   useFileAuditDocument,
   useWithdrawAuditDocument,
+  useWithdrawnAuditDocuments,
 } from "./hooks";

@@ -2216,6 +2216,9 @@ export const AuditDocumentSchema = z.object({
   uploader_type: z.string().default(""),
   uploader_id: z.string().default(""),
   created_at: z.string().default(""),
+  withdrawn_at: z.string().optional(),
+  withdrawn_by: z.string().optional(),
+  withdrawal_reason: z.string().optional(),
 }).loose();
 
 export const AuditDocumentListSchema = z.array(AuditDocumentSchema);

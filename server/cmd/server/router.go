@@ -1982,6 +1982,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Post("/api/audit/categories", h.CreateAuditCategory)
 			r.Delete("/api/audit/categories/{path}", h.DeleteAuditCategory)
 			r.Get("/api/audit/documents", h.ListAuditDocuments)
+			// What the library used to hold. Same membership as the rest of it:
+			// what was withdrawn, and why, is part of the file.
+			r.Get("/api/audit/documents/withdrawn", h.ListWithdrawnAuditDocuments)
 			r.Post("/api/audit/documents", h.FileAuditDocument)
 			r.Delete("/api/audit/documents/{id}", h.DeleteAuditDocument)
 			r.Get("/api/issues/{id}/audit-actions", h.ListAuditActions)

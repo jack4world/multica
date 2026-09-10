@@ -340,3 +340,17 @@ SELECT m.id AS member_id, m.user_id, u.name, u.email
 FROM member m
 JOIN "user" u ON u.id = m.user_id
 WHERE m.workspace_id = $1;
+
+-- name: ListWithdrawnAuditDocuments :many
+-- What the library used to hold and no longer does.
+--
+-- Without this read the withdrawal record exists only in the trail, and the
+-- library itself cannot answer "was anything taken out of here?" — which is the
+-- question the whole withdrawal design exists to make answerable.
+SELECT d.*, a.filename, a.content_type, a.size_bytes
+FROM audit_document d
+JOIN attachment a ON a.id = d.attachment_id
+WHERE d.workspace_id = $1
+  AND d.withdrawn_at IS NOT NULL
+ORDER BY d.withdrawn_at DESC
+LIMIT sqlc.arg('lim');

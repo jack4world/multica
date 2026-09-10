@@ -1046,7 +1046,13 @@
       "withdraw_placeholder": "Why is this being withdrawn?",
       "withdraw_confirm": "Withdraw",
       "withdraw_cancel": "Cancel",
-      "withdraw_failed": "The withdrawal did not complete."
+      "withdraw_failed": "The withdrawal did not complete.",
+      "withdrawn_title": "Withdrawn material",
+      "withdrawn_show": "Show withdrawn",
+      "withdrawn_hide": "Back to the library",
+      "withdrawn_empty": "Nothing has been withdrawn.",
+      "withdrawn_at": "Withdrawn",
+      "withdrawn_reason_label": "Reason"
     }
   }
 }

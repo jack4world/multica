@@ -14,6 +14,7 @@ const requestedPath = vi.fn<(path: string) => void>();
 const fileDocument = vi.fn();
 const createCategory = vi.fn();
 const removeDocument = vi.fn();
+const withdrawnDocuments = vi.fn<() => AuditDocument[]>(() => []);
 
 function category(over: Partial<AuditCategory> = {}): AuditCategory {
   return { path: "01", name: "内部控制制度", is_standard: true, depth: 1, ...over };
@@ -47,6 +48,7 @@ vi.mock("@multica/core/audit", () => ({
   useDeleteAuditCategory: () => ({ mutate: vi.fn(), isPending: false }),
   useFileAuditDocument: () => ({ mutate: fileDocument, isPending: false }),
   useWithdrawAuditDocument: () => ({ mutate: removeDocument, isPending: false }),
+  useWithdrawnAuditDocuments: () => ({ data: withdrawnDocuments(), isPending: false }),
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
@@ -68,6 +70,7 @@ beforeEach(() => {
   fileDocument.mockReset();
   createCategory.mockReset();
   removeDocument.mockReset();
+  withdrawnDocuments.mockReturnValue([]);
 });
 
 describe("document library", () => {
@@ -96,6 +99,32 @@ describe("document library", () => {
     categories.mockReturnValue([category()]);
     render(<DocumentLibraryPage />);
     expect(screen.getByText("本类目下还没有资料。")).toBeInTheDocument();
+  });
+
+  // Withdrawal keeps the row and writes the trail; without somewhere to read
+  // it, "the library can say what was here" is a claim the product does not
+  // actually make.
+  it("can say what was withdrawn, and never offers it for download", () => {
+    categories.mockReturnValue([category()]);
+    documents.mockReturnValue([document()]);
+    withdrawnDocuments.mockReturnValue([
+      document({
+        id: "doc-gone",
+        title: "旧版银行对账单",
+        download_url: "",
+        withdrawn_at: "2026-09-10T00:00:00Z",
+        withdrawn_by: "u-1",
+        withdrawal_reason: "客户提供的版本有误",
+      }),
+    ]);
+    render(<DocumentLibraryPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "查看已撤下" }));
+    expect(screen.getByText("旧版银行对账单")).toBeInTheDocument();
+    expect(screen.getByText(/客户提供的版本有误/)).toBeInTheDocument();
+    // The material is out of the file: this view says it WAS here, not "here
+    // it still is".
+    expect(screen.queryByRole("link", { name: "旧版银行对账单" })).not.toBeInTheDocument();
   });
 
   it("will not withdraw a document until a reason is typed", () => {
