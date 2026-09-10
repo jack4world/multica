@@ -42,7 +42,8 @@ type ArchiveResponse struct {
 
 // ArchiveEngagement writes the engagement's file and closes it.
 func (h *Handler) ArchiveEngagement(w http.ResponseWriter, r *http.Request) {
-	project, member, ok := h.requireEngagementRank(w, r)
+	// The one write that names an engagement in order to close it.
+	project, member, ok := h.requireEngagementRank(w, r, true)
 	if !ok {
 		return
 	}

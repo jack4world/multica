@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/multica-ai/multica/server/internal/auditarchive"
 	"github.com/multica-ai/multica/server/internal/auditgate"
@@ -269,4 +270,113 @@ func TestAnAgentCannotArchiveAnEngagement(t *testing.T) {
 	req.Header.Set("X-Agent-ID", "11111111-1111-4111-8111-111111111111")
 	testutil.Call(t, testHandler.ArchiveEngagement, withURLParam(req, "id", f.projectID)).
 		Want(http.StatusForbidden)
+}
+
+// EVERY write that names an engagement, against an archived one.
+//
+// A table rather than a handful of spot checks, because the failure this
+// prevents is silent: the archive publishes a sha256 per file, which proves
+// nothing was altered INSIDE the package and nothing at all about what was
+// added to the engagement afterwards. A report or an item created after
+// archival makes the file quietly incomplete, and "is this the whole file?" is
+// the only question an archive exists to answer.
+//
+// Adding an engagement-scoped audit write without adding it here leaves this
+// list visibly short — which is the point.
+func TestAnArchivedEngagementRefusesEveryEngagementScopedWrite(t *testing.T) {
+	withArchiveStore(t)
+	f := newAuditFixture(t)
+	dept := f.department(t, "财务部")
+	f.issueReport(t)
+	f.archive(t, f.reviewerUsers[auditgate.LevelL2]).Want(http.StatusOK)
+
+	l2 := f.reviewerUsers[auditgate.LevelL2]
+	var memberID string
+	dbfx.QueryRow(t, `SELECT id::text FROM member WHERE workspace_id = $1 AND user_id = $2`,
+		f.workspaceID, l2).Scan(&memberID)
+
+	cases := []struct {
+		name    string
+		method  string
+		path    string
+		body    map[string]any
+		handler http.HandlerFunc
+		param   string
+	}{
+		{
+			name: "起草新报告", method: http.MethodPost, path: "/reports",
+			body: map[string]any{"title": "归档后新建"}, handler: testHandler.CreateAuditReport, param: "id",
+		},
+		{
+			name: "提出新的整改事项", method: http.MethodPost, path: "/remediation",
+			body: map[string]any{
+				"title": "归档后新提", "department_id": dept,
+				"due_date": time.Now().AddDate(0, 0, 30).Format("2006-01-02"),
+			},
+			handler: testHandler.RaiseRemediationItem, param: "id",
+		},
+		{
+			name: "任命复核人", method: http.MethodPut, path: "/audit-roles",
+			body:    map[string]any{"member_id": memberID, "level": string(auditgate.LevelL1)},
+			handler: testHandler.SetAuditRole, param: "id",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := auditRequest(c.method, "/api/projects/"+f.projectID+c.path, f.workspaceID, c.body)
+			req.Header.Set("X-User-ID", l2)
+			testutil.Call(t, c.handler, withURLParam(req, c.param, f.projectID)).Want(http.StatusConflict)
+		})
+	}
+
+	// Nothing was created despite the attempts.
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM audit_report WHERE project_id = $1`, f.projectID); n != 1 {
+		t.Errorf("audit_report rows = %d, want only the issued one", n)
+	}
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM audit_remediation WHERE source_project_id = $1`, f.projectID); n != 0 {
+		t.Errorf("audit_remediation rows = %d, want 0", n)
+	}
+}
+
+// The other half, and the one it would be easy to break while fixing the
+// above: a remediation item OUTLIVES the audit that found it (docs/adr/0004).
+// Its engagement closing must not freeze the item — chasing it afterwards is
+// exactly what 后续审计 is.
+func TestAnItemKeepsMovingAfterItsEngagementIsArchived(t *testing.T) {
+	withArchiveStore(t)
+	f := newAuditFixture(t)
+	dept := f.department(t, "财务部")
+	issueID := f.item(t, dept)
+	f.issueReport(t)
+	f.archive(t, f.reviewerUsers[auditgate.LevelL2]).Want(http.StatusOK)
+
+	f.move(t, issueID, auditmode.StatusRemediating, "", testUserID).Want(http.StatusOK)
+	f.move(t, issueID, auditmode.StatusPendingVerification, "已整改", testUserID).Want(http.StatusOK)
+	f.move(t, issueID, auditmode.StatusRemediationClosed, "抽查通过",
+		f.reviewerUsers[auditgate.LevelL1]).Want(http.StatusOK)
+
+	// And it can still be re-routed to the department that actually owns it.
+	other := f.department(t, "采购部")
+	req := auditRequest(http.MethodPut, "/api/issues/"+issueID+"/remediation", f.workspaceID,
+		map[string]any{"department_id": other})
+	req.Header.Set("X-User-ID", f.reviewerUsers[auditgate.LevelL1])
+	testutil.Call(t, testHandler.UpdateRemediationDepartment, withURLParam(req, "id", issueID)).
+		Want(http.StatusOK)
+}
+
+// A draft can outlive archival — archiving requires an ISSUED report, not the
+// absence of a draft — and writing to it afterwards would add to a closed file.
+func TestADraftReportIsFrozenWhenTheEngagementIsArchived(t *testing.T) {
+	withArchiveStore(t)
+	f := newAuditFixture(t)
+	f.issueReport(t)
+
+	// A second version, started before the file closes.
+	var draft AuditReportResponse
+	f.startReport(t, f.reviewerUsers[auditgate.LevelL1]).Want(http.StatusCreated).JSON(&draft)
+	f.archive(t, f.reviewerUsers[auditgate.LevelL2]).Want(http.StatusOK)
+
+	f.writeReport(t, draft.ID, map[string]any{"opinion": "归档后再写"},
+		f.reviewerUsers[auditgate.LevelL1]).Want(http.StatusConflict)
 }
