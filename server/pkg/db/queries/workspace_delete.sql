@@ -571,6 +571,12 @@ deleted_audit_remediations AS (
 ),
 deleted_audit_departments AS (
     DELETE FROM audit_department WHERE audit_department.workspace_id = $1
+),
+-- The engagement's deliverable, which dies with the auditee like the rest of
+-- the vertical's rows. The trail's copy outside the database is what outlives a
+-- teardown; see internal/scheduler/jobs_audit_export.go.
+deleted_audit_reports AS (
+    DELETE FROM audit_report WHERE audit_report.workspace_id = $1
 )
 DELETE FROM quick_action WHERE quick_action.workspace_id = $1;
 

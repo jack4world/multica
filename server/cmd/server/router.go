@@ -1996,6 +1996,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/audit/remediation", h.ListRemediationLedger)
 			r.Put("/api/issues/{id}/remediation", h.UpdateRemediationDepartment)
 
+			// The engagement's deliverable. Reads are auditee membership;
+			// starting one needs a rank on the engagement and signing needs the
+			// top rank of the depth it runs, gated inside the handlers.
+			r.Get("/api/audit/reports/{reportId}", h.GetAuditReport)
+			r.Put("/api/audit/reports/{reportId}", h.UpdateAuditReport)
+			r.Get("/api/audit/reports/{reportId}/export", h.ExportAuditReport)
+
 			r.Route("/api/audit-mode", func(r chi.Router) {
 				r.Get("/", h.GetAuditMode)
 				r.Post("/", h.EnableAuditMode)
@@ -2025,6 +2032,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// that belongs to no engagement is what makes it outlive
 					// the audit that found it.
 					r.Post("/remediation", h.RaiseRemediationItem)
+					r.Get("/reports", h.ListAuditReports)
+					r.Post("/reports", h.CreateAuditReport)
 				})
 			})
 
