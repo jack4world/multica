@@ -7,6 +7,8 @@ export {
   remediationLedgerOptions,
   auditReportsOptions,
   auditReportOptions,
+  auditCategoriesOptions,
+  auditDocumentsOptions,
 } from "./queries";
 export {
   useAuditMode,
@@ -24,4 +26,10 @@ export {
   useCreateAuditReport,
   useUpdateAuditReport,
   useArchiveEngagement,
+  useAuditCategories,
+  useAuditDocuments,
+  useCreateAuditCategory,
+  useDeleteAuditCategory,
+  useFileAuditDocument,
+  useDeleteAuditDocument,
 } from "./hooks";

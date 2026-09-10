@@ -145,3 +145,29 @@ export interface EngagementArchive {
   remediation_count: number;
   attachment_count: number;
 }
+
+/** One node of the auditee's filing scheme. */
+export interface AuditCategory {
+  /** The identity: "03", "03/01". Fixed-width segments, so it sorts as filed. */
+  path: string;
+  name: string;
+  /** Marks the seeded scheme, so an interface can show what every auditee shares. */
+  is_standard: boolean;
+  depth: number;
+  parent?: string;
+}
+
+/** One piece of filed material. The bytes live in a platform attachment. */
+export interface AuditDocument {
+  id: string;
+  category_path: string;
+  title: string;
+  attachment_id: string;
+  filename: string;
+  url: string;
+  content_type: string;
+  size_bytes: number;
+  uploader_type: string;
+  uploader_id: string;
+  created_at: string;
+}

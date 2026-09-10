@@ -119,7 +119,9 @@ import type {
   ListLabelsResponse,
   AuditAction,
   AuditMode,
+  AuditCategory,
   AuditDepartment,
+  AuditDocument,
   AuditReport,
   UpdateAuditReportRequest,
   EngagementArchive,
@@ -397,6 +399,11 @@ import {
   AuditDepartmentListSchema,
   AuditReportSchema,
   AuditReportListSchema,
+  AuditCategoryListSchema,
+  AuditCategorySchema,
+  AuditDocumentListSchema,
+  AuditDocumentSchema,
+  EMPTY_AUDIT_DOCUMENT,
   EngagementArchiveSchema,
   EMPTY_AUDIT_REPORT,
   EMPTY_ENGAGEMENT_ARCHIVE,
@@ -3828,6 +3835,60 @@ export class ApiClient {
     return parseWithFallback(raw, EngagementArchiveSchema, EMPTY_ENGAGEMENT_ARCHIVE, {
       endpoint: "POST /api/projects/{id}/archive",
     });
+  }
+
+  // The auditee's document library. It belongs to the WORKSPACE, not to an
+  // engagement or an issue: the same client's material spans every audit of it.
+  async listAuditCategories(): Promise<AuditCategory[]> {
+    const raw = await this.fetch<unknown>(`/api/audit/categories`);
+    return parseWithFallback(raw, AuditCategoryListSchema, [], {
+      endpoint: "GET /api/audit/categories",
+    });
+  }
+
+  async createAuditCategory(path: string, name: string): Promise<AuditCategory> {
+    const raw = await this.fetch<unknown>(`/api/audit/categories`, {
+      method: "POST",
+      body: JSON.stringify({ path, name }),
+    });
+    return parseWithFallback(raw, AuditCategorySchema, { path, name, is_standard: false, depth: 1 }, {
+      endpoint: "POST /api/audit/categories",
+    });
+  }
+
+  async deleteAuditCategory(path: string): Promise<void> {
+    // The path IS the identity and carries "/", so it is one encoded segment.
+    await this.fetch<void>(`/api/audit/categories/${encodeURIComponent(path)}`, {
+      method: "DELETE",
+    });
+  }
+
+  /** Everything filed under a drawer, at any depth beneath it. */
+  async listAuditDocuments(categoryPath: string): Promise<AuditDocument[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/audit/documents?category=${encodeURIComponent(categoryPath)}`,
+    );
+    return parseWithFallback(raw, AuditDocumentListSchema, [], {
+      endpoint: "GET /api/audit/documents",
+    });
+  }
+
+  async fileAuditDocument(data: {
+    attachment_id: string;
+    category_path: string;
+    title: string;
+  }): Promise<AuditDocument> {
+    const raw = await this.fetch<unknown>(`/api/audit/documents`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, AuditDocumentSchema, EMPTY_AUDIT_DOCUMENT, {
+      endpoint: "POST /api/audit/documents",
+    });
+  }
+
+  async deleteAuditDocument(id: string): Promise<void> {
+    await this.fetch<void>(`/api/audit/documents/${id}`, { method: "DELETE" });
   }
 
   async getAuditMode(): Promise<AuditMode> {

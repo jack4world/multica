@@ -11,6 +11,8 @@ import {
   auditActionsOptions,
   auditDepartmentsOptions,
   auditKeys,
+  auditCategoriesOptions,
+  auditDocumentsOptions,
   auditReportOptions,
   auditReportsOptions,
   auditModeOptions,
@@ -201,6 +203,80 @@ export function useArchiveEngagement(wsId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: auditKeys.all(wsId) });
       void queryClient.invalidateQueries({ queryKey: projectKeys.all(wsId) });
+    },
+  });
+}
+
+/** The auditee's filing scheme, in filing order. */
+export function useAuditCategories(wsId: string, enabled = true) {
+  return useQuery({ ...auditCategoriesOptions(wsId), enabled: Boolean(wsId) && enabled });
+}
+
+/** What is filed under one drawer, at any depth beneath it. */
+export function useAuditDocuments(wsId: string, categoryPath: string, enabled = true) {
+  return useQuery({
+    ...auditDocumentsOptions(wsId, categoryPath),
+    enabled: Boolean(wsId) && Boolean(categoryPath) && enabled,
+  });
+}
+
+/** Add a drawer this auditee needs. */
+export function useCreateAuditCategory(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { path: string; name: string }) =>
+      api.createAuditCategory(input.path, input.name),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: auditKeys.categories(wsId) });
+    },
+  });
+}
+
+/** Remove a drawer that holds nothing. */
+export function useDeleteAuditCategory(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) => api.deleteAuditCategory(path),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: auditKeys.categories(wsId) });
+    },
+  });
+}
+
+/**
+ * File material in a drawer.
+ *
+ * Two steps, because the bytes go through the platform's own upload path: the
+ * file becomes an attachment, and this records where it is filed. A second
+ * storage path for audit material would be a second thing to secure.
+ */
+export function useFileAuditDocument(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { file: File; categoryPath: string; title?: string }) => {
+      const attachment = await api.uploadFile(input.file);
+      return api.fileAuditDocument({
+        attachment_id: attachment.id,
+        category_path: input.categoryPath,
+        title: (input.title ?? "").trim() || input.file.name,
+      });
+    },
+    onSuccess: (_doc, input) => {
+      // Every ancestor drawer also lists this document, so the whole document
+      // namespace goes rather than one key.
+      void queryClient.invalidateQueries({ queryKey: auditKeys.all(wsId) });
+      void queryClient.invalidateQueries({ queryKey: auditKeys.documents(wsId, input.categoryPath) });
+    },
+  });
+}
+
+/** Remove filed material. People only; the server refuses an agent. */
+export function useDeleteAuditDocument(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteAuditDocument(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: auditKeys.all(wsId) });
     },
   });
 }

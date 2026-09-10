@@ -2,7 +2,9 @@ import { queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
 import type {
   AuditAction,
+  AuditCategory,
   AuditDepartment,
+  AuditDocument,
   AuditReport,
   AuditMode,
   RemediationItem,
@@ -30,6 +32,11 @@ export const auditKeys = {
     ["audit", wsId, "remediation", filters] as const,
   reports: (wsId: string, projectId: string) => ["audit", wsId, "reports", projectId] as const,
   report: (wsId: string, reportId: string) => ["audit", wsId, "report", reportId] as const,
+  categories: (wsId: string) => ["audit", wsId, "categories"] as const,
+  // The drawer is part of the key: asking for 03 returns everything beneath it,
+  // and serving that under 03/01's key would show one drawer's contents in
+  // another.
+  documents: (wsId: string, path: string) => ["audit", wsId, "documents", path] as const,
 };
 
 export function auditModeOptions(wsId: string) {
@@ -82,5 +89,19 @@ export function auditReportOptions(wsId: string, reportId: string) {
   return queryOptions({
     queryKey: auditKeys.report(wsId, reportId),
     queryFn: (): Promise<AuditReport> => api.getAuditReport(reportId),
+  });
+}
+
+export function auditCategoriesOptions(wsId: string) {
+  return queryOptions({
+    queryKey: auditKeys.categories(wsId),
+    queryFn: (): Promise<AuditCategory[]> => api.listAuditCategories(),
+  });
+}
+
+export function auditDocumentsOptions(wsId: string, categoryPath: string) {
+  return queryOptions({
+    queryKey: auditKeys.documents(wsId, categoryPath),
+    queryFn: (): Promise<AuditDocument[]> => api.listAuditDocuments(categoryPath),
   });
 }

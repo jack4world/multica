@@ -23,6 +23,7 @@ export type RouteIconName =
   | "Inbox"
   | "Stamp"
   | "ClipboardCheck"
+  | "FolderArchive"
   | "MessageSquare"
   | "CircleUser"
   | "ListTodo"
@@ -49,6 +50,7 @@ export type NavLabelKey =
   | "inbox"
   | "review_queue"
   | "remediation"
+  | "audit_documents"
   | "chat"
   | "my_issues"
   | "issues"
@@ -66,6 +68,7 @@ export type WorkspacePageKey =
   | "inbox"
   | "reviewQueue"
   | "remediation"
+  | "auditDocuments"
   | "chat"
   | "myIssues"
   | "issues"
@@ -104,6 +107,10 @@ export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
   // it is not a filter over the issue list: an item's department, deadline and
   // verification are facts the issue list has no column for.
   remediation: { segment: "remediation", icon: "ClipboardCheck", navKey: "remediation" },
+  // The auditee's own material, filed by classification number. Workspace-level
+  // like the rest of the library: the same client's policies and vouchers span
+  // every audit of it (docs/adr/0001).
+  auditDocuments: { segment: "audit-documents", icon: "FolderArchive", navKey: "audit_documents" },
   issues: { segment: "issues", icon: "ListTodo", navKey: "issues" },
   projects: { segment: "projects", icon: "FolderKanban", navKey: "projects" },
   autopilots: { segment: "autopilots", icon: "Zap", navKey: "autopilots" },

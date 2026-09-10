@@ -66,6 +66,7 @@ function workspaceScoped(slug: string) {
     myIssues: () => `${ws}/my-issues`,
     reviewQueue: () => `${ws}/review-queue`,
     remediation: () => `${ws}/remediation`,
+    auditDocuments: () => `${ws}/audit-documents`,
     runtimes: () => `${ws}/runtimes`,
     runtimeDetail: (id: string) => `${ws}/runtimes/${encode(id)}`,
     runtimeSettings: (machineId: string, runtimeId: string) =>
