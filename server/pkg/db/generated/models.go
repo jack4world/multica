@@ -209,15 +209,18 @@ type AuditDepartment struct {
 }
 
 type AuditDocument struct {
-	ID           pgtype.UUID        `json:"id"`
-	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
-	AttachmentID pgtype.UUID        `json:"attachment_id"`
-	CategoryPath string             `json:"category_path"`
-	Title        string             `json:"title"`
-	UploaderType string             `json:"uploader_type"`
-	UploaderID   pgtype.UUID        `json:"uploader_id"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	AttachmentID     pgtype.UUID        `json:"attachment_id"`
+	CategoryPath     string             `json:"category_path"`
+	Title            string             `json:"title"`
+	UploaderType     string             `json:"uploader_type"`
+	UploaderID       pgtype.UUID        `json:"uploader_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	WithdrawnAt      pgtype.Timestamptz `json:"withdrawn_at"`
+	WithdrawnBy      pgtype.UUID        `json:"withdrawn_by"`
+	WithdrawalReason pgtype.Text        `json:"withdrawal_reason"`
 }
 
 type AuditDocumentCategory struct {

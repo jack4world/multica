@@ -65,7 +65,8 @@ RETURNING *;
 -- name: ListRemediationForReport :many
 -- The items this engagement raised, in the order a report lists them. Read live
 -- while the report is a draft, and snapshotted at signing.
-SELECT r.issue_id, i.title, i.status, i.due_date, d.name AS department_name
+SELECT r.issue_id, i.title, i.status, i.due_date, d.name AS department_name,
+       i.assignee_type, i.assignee_id, r.verified_by
 FROM audit_remediation r
 JOIN issue i ON i.id = r.issue_id
 JOIN audit_department d ON d.id = r.department_id

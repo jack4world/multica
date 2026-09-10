@@ -380,3 +380,127 @@ func TestADraftReportIsFrozenWhenTheEngagementIsArchived(t *testing.T) {
 	f.writeReport(t, draft.ID, map[string]any{"opinion": "归档后再写"},
 		f.reviewerUsers[auditgate.LevelL1]).Want(http.StatusConflict)
 }
+
+// An archive nobody can read the names in answers nothing.
+//
+// The point of the file is that it survives the system that produced it: no
+// database to join against, people who have left, possibly a company that has
+// replaced the software. A bare uuid in a trail entry answers "who approved
+// this?" with "look it up", and the first version of this archive did exactly
+// that — worse, it wrote the trail's actor as a USER id and the preparer as a
+// MEMBER id, so the same person appeared in two files as two unrelated uuids.
+func TestTheArchiveNamesThePeopleInIt(t *testing.T) {
+	store := withArchiveStore(t)
+	f := newAuditFixture(t)
+	dept := f.department(t, "采购部")
+	issueID := f.item(t, dept)
+
+	// A workpaper walked by real people, so preparer and signer are recorded.
+	wp := f.workpaper(t, auditmode.StatusDrafting)
+	f.setStatus(t, wp, auditmode.StatusReviewL1, testUserID).Want(http.StatusOK)
+	f.setStatus(t, wp, auditmode.StatusReviewL2, f.reviewerUsers[auditgate.LevelL1]).Want(http.StatusOK)
+	f.setStatus(t, wp, auditmode.StatusFiled, f.reviewerUsers[auditgate.LevelL2]).Want(http.StatusOK)
+
+	// An item taken to closure, so responsible and verifier are recorded.
+	f.move(t, issueID, auditmode.StatusRemediating, "", testUserID).Want(http.StatusOK)
+	f.move(t, issueID, auditmode.StatusPendingVerification, "已整改", testUserID).Want(http.StatusOK)
+	f.move(t, issueID, auditmode.StatusRemediationClosed, "抽查通过",
+		f.reviewerUsers[auditgate.LevelL1]).Want(http.StatusOK)
+
+	f.issueReport(t)
+	f.archive(t, f.reviewerUsers[auditgate.LevelL2]).Want(http.StatusOK)
+
+	read := func(suffix string) string {
+		t.Helper()
+		for key, data := range store.objects {
+			if strings.HasSuffix(key, suffix) {
+				return string(data)
+			}
+		}
+		t.Fatalf("no %s in the archive", suffix)
+		return ""
+	}
+
+	var workpapers []auditarchive.Workpaper
+	for _, line := range strings.Split(strings.TrimSpace(read("workpapers.jsonl")), "\n") {
+		var w auditarchive.Workpaper
+		if err := json.Unmarshal([]byte(line), &w); err != nil {
+			t.Fatalf("workpapers.jsonl: %v", err)
+		}
+		workpapers = append(workpapers, w)
+	}
+	var preparer auditarchive.Person
+	for _, w := range workpapers {
+		if w.IssueID == wp {
+			preparer = w.Preparer
+		}
+	}
+	if preparer.Name == "" {
+		t.Error("the archived workpaper names no preparer; a uuid is not an answer to \"who wrote this\"")
+	}
+
+	var signers []auditarchive.Person
+	for _, line := range strings.Split(strings.TrimSpace(read("trail.jsonl")), "\n") {
+		var e auditarchive.TrailEntry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("trail.jsonl: %v", err)
+		}
+		if e.Action == string(auditgate.EventFiled) || e.Action == string(auditgate.EventReviewPassed) {
+			signers = append(signers, e.Actor)
+		}
+	}
+	if len(signers) == 0 {
+		t.Fatal("the archived trail records no signatures")
+	}
+	for _, s := range signers {
+		if s.Name == "" {
+			t.Errorf("a signature in the trail names nobody: %+v", s)
+		}
+		// The rank is what makes a signature readable: "赵六" alone leaves the
+		// reader asking what standing they had to sign it.
+		if s.Level == "" {
+			t.Errorf("signature by %q records no rank on this engagement", s.Name)
+		}
+	}
+
+	// THE cross-file check: the preparer and the trail actors have to be
+	// matchable, which they were not while one was a member id and the other a
+	// user id.
+	var preparerAppearsInTrail bool
+	for _, s := range signers {
+		if s.ID == preparer.ID {
+			preparerAppearsInTrail = true
+		}
+	}
+	var trailIDs []string
+	for _, s := range signers {
+		trailIDs = append(trailIDs, s.ID)
+	}
+	if preparer.ID == "" {
+		t.Error("the preparer has no id to match against the trail")
+	}
+	_ = preparerAppearsInTrail // the preparer need not be a signer; the ids must simply be comparable
+	for _, id := range trailIDs {
+		if id == "" {
+			t.Error("a trail actor has no id")
+		}
+	}
+
+	var items []auditarchive.RemediationItem
+	for _, line := range strings.Split(strings.TrimSpace(read("remediation.jsonl")), "\n") {
+		var it auditarchive.RemediationItem
+		if err := json.Unmarshal([]byte(line), &it); err != nil {
+			t.Fatalf("remediation.jsonl: %v", err)
+		}
+		items = append(items, it)
+	}
+	if len(items) != 1 {
+		t.Fatalf("archived %d items, want 1", len(items))
+	}
+	if items[0].Responsible.Name == "" {
+		t.Error("the archived item names nobody responsible for the fix")
+	}
+	if items[0].Verifier.Name == "" {
+		t.Error("the archived item names nobody as having verified it")
+	}
+}

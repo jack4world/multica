@@ -31,5 +31,5 @@ export {
   useCreateAuditCategory,
   useDeleteAuditCategory,
   useFileAuditDocument,
-  useDeleteAuditDocument,
+  useWithdrawAuditDocument,
 } from "./hooks";

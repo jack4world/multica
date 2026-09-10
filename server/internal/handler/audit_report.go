@@ -275,8 +275,18 @@ func (h *Handler) UpdateAuditReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	updated := locked
-	if req.Title != nil || req.Background != nil || req.Basis != nil ||
-		req.Scope != nil || req.Opinion != nil || req.Requirements != nil {
+	touched := changedSections(req)
+	// A report under sign-off is out of the drafter's hands. Editing it there
+	// would mean the signer may not be signing what they read: they open it,
+	// go and think about it, and the text moves underneath them with no status
+	// change and nothing in the trail. Changing a submitted report is done by
+	// having it returned — which needs a reason and is recorded.
+	if len(touched) > 0 && locked.Status == auditreport.StatusReviewing {
+		writeErrorCode(w, http.StatusConflict, "report_under_review",
+			"this report is with its signatory; ask for it back before changing it, so nobody signs text they have not read")
+		return
+	}
+	if len(touched) > 0 {
 		if req.Title != nil && len([]rune(strings.TrimSpace(*req.Title))) > 200 {
 			writeError(w, http.StatusBadRequest, "a report title is at most 200 characters")
 			return
@@ -331,6 +341,44 @@ func (h *Handler) UpdateAuditReport(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			slog.Warn("SetAuditReportStatus failed", append(logger.RequestAttrs(r), "error", err)...)
 			writeError(w, http.StatusInternalServerError, "failed to write the report")
+			return
+		}
+	}
+
+	// Content edits are recorded too, not only transitions.
+	//
+	// The append-only trail protects what was written to it, and nothing was
+	// written when a report's text changed — so "T1 submitted, T2 issued" was
+	// the whole story even if every section had been rewritten in between.
+	// What is recorded is WHICH sections moved, not their text: the trail is an
+	// index of what happened, and the versions themselves are what a corrected
+	// report is for.
+	if len(touched) > 0 {
+		details, marshalErr := json.Marshal(map[string]any{
+			"report_id":  uuidToString(updated.ID),
+			"project_id": uuidToString(updated.ProjectID),
+			"version":    updated.Version,
+			"sections":   touched,
+		})
+		if marshalErr != nil {
+			writeError(w, http.StatusInternalServerError, "failed to record the change")
+			return
+		}
+		actorUUID, parseErr := util.ParseUUID(userID)
+		if parseErr != nil {
+			writeError(w, http.StatusInternalServerError, "failed to record the change")
+			return
+		}
+		if _, err := qtx.CreateActivity(r.Context(), db.CreateActivityParams{
+			ID:          dbid.NewV7(),
+			WorkspaceID: report.WorkspaceID,
+			ActorType:   pgtype.Text{String: actorType, Valid: actorType != ""},
+			ActorID:     actorUUID,
+			Action:      "report_updated",
+			Details:     details,
+		}); err != nil {
+			slog.Warn("report update trail failed", append(logger.RequestAttrs(r), "error", err)...)
+			writeError(w, http.StatusInternalServerError, "failed to record the change")
 			return
 		}
 	}
@@ -646,4 +694,27 @@ func textOrNull(v *string) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: *v, Valid: true}
+}
+
+// changedSections names the sections this request writes, in a stable order.
+// The trail records the names rather than the text: it is an index of what
+// happened, and the report's own versions are what a correction is for.
+func changedSections(req UpdateAuditReportRequest) []string {
+	var touched []string
+	for _, section := range []struct {
+		name  string
+		value *string
+	}{
+		{"title", req.Title},
+		{"background", req.Background},
+		{"basis", req.Basis},
+		{"scope", req.Scope},
+		{"opinion", req.Opinion},
+		{"requirements", req.Requirements},
+	} {
+		if section.value != nil {
+			touched = append(touched, section.name)
+		}
+	}
+	return touched
 }

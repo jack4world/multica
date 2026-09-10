@@ -90,6 +90,11 @@ function ReportBody({ wsId, report }: { wsId: string; report: AuditReport }) {
   const [sendingBack, setSendingBack] = useState(false);
   const [reason, setReason] = useState("");
   const issued = report.status === "issued";
+  // Under sign-off the text is out of the drafter's hands: a signatory may
+  // not sign what they read if it can move underneath them. The server
+  // refuses it too; not offering it is what stops the refusal from being how
+  // people learn the rule.
+  const readOnly = issued || report.status === "reviewing";
 
   const save = (data: Parameters<typeof update.mutate>[0]["data"]) => {
     update.mutate(
@@ -137,19 +142,19 @@ function ReportBody({ wsId, report }: { wsId: string; report: AuditReport }) {
       <Section
         heading={t(($) => $.audit.report.section_background)}
         value={report.background}
-        readOnly={issued}
+        readOnly={readOnly}
         onCommit={(value) => save({ background: value })}
       />
       <Section
         heading={t(($) => $.audit.report.section_basis)}
         value={report.basis}
-        readOnly={issued}
+        readOnly={readOnly}
         onCommit={(value) => save({ basis: value })}
       />
       <Section
         heading={t(($) => $.audit.report.section_scope)}
         value={report.scope}
-        readOnly={issued}
+        readOnly={readOnly}
         onCommit={(value) => save({ scope: value })}
       />
 
@@ -158,13 +163,13 @@ function ReportBody({ wsId, report }: { wsId: string; report: AuditReport }) {
       <Section
         heading={t(($) => $.audit.report.section_opinion)}
         value={report.opinion}
-        readOnly={issued}
+        readOnly={readOnly}
         onCommit={(value) => save({ opinion: value })}
       />
       <Section
         heading={t(($) => $.audit.report.section_requirements)}
         value={report.requirements}
-        readOnly={issued}
+        readOnly={readOnly}
         onCommit={(value) => save({ requirements: value })}
       />
 

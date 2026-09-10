@@ -1015,7 +1015,8 @@
       "refusal_workpapers_unfinished": "Workpapers are still in the review chain. Finish them first.",
       "refusal_archive_not_configured": "No archive destination is configured. An administrator must set AUDIT_EXPORT_DIR.",
       "refusal_rank_required": "This step needs the top reviewer rank on this engagement.",
-      "refusal_report_issued": "The report is issued and cannot be changed. Issue a new version instead."
+      "refusal_report_issued": "The report is issued and cannot be changed. Issue a new version instead.",
+      "refusal_report_under_review": "This report is with its signatory. Ask for it back before changing it, so nobody signs text they have not read."
     },
     "library": {
       "title": "Documents",
@@ -1039,7 +1040,13 @@
       "new_category_add": "Add",
       "new_category_failed": "The drawer could not be added.",
       "delete_category": "Remove drawer",
-      "delete_category_failed": "The drawer still holds material or sub-drawers. Empty it first."
+      "delete_category_failed": "The drawer still holds material or sub-drawers. Empty it first.",
+      "withdraw": "Withdraw",
+      "withdraw_reason": "Why",
+      "withdraw_placeholder": "Why is this being withdrawn?",
+      "withdraw_confirm": "Withdraw",
+      "withdraw_cancel": "Cancel",
+      "withdraw_failed": "The withdrawal did not complete."
     }
   }
 }

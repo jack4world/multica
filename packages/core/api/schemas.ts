@@ -2208,7 +2208,9 @@ export const AuditDocumentSchema = z.object({
   title: z.string().default(""),
   attachment_id: z.string().default(""),
   filename: z.string().default(""),
-  url: z.string().default(""),
+  // A short-lived signed capability, not a storage URL. Minted per read, so it
+  // is not something to cache or persist.
+  download_url: z.string().default(""),
   content_type: z.string().default(""),
   size_bytes: z.number().default(0),
   uploader_type: z.string().default(""),
@@ -2224,7 +2226,7 @@ export const EMPTY_AUDIT_DOCUMENT: AuditDocument = {
   title: "",
   attachment_id: "",
   filename: "",
-  url: "",
+  download_url: "",
   content_type: "",
   size_bytes: 0,
   uploader_type: "",
