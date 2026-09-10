@@ -1021,6 +1021,7 @@
       "col_status": "Status",
       "workpapers": "{total} workpapers, {filed} filed.",
       "submit": "Submit for sign-off",
+      "submitted_toast": "Submitted for sign-off.",
       "issue": "Issue",
       "send_back": "Send back",
       "send_back_reason": "Why it does not stand",

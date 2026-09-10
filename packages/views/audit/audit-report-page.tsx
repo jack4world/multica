@@ -94,7 +94,18 @@ function ReportBody({ wsId, report }: { wsId: string; report: AuditReport }) {
   const save = (data: Parameters<typeof update.mutate>[0]["data"]) => {
     update.mutate(
       { reportId: report.id, data },
-      { onError: (err: unknown) => toast.error(reportRefusal(t, err)) },
+      {
+        onSuccess: () => {
+          // Only for submission. Signing and sending back change the page
+          // visibly — the badge, the editors, the buttons — but submitting
+          // moves one badge and swaps one button, which is not enough feedback
+          // for the step that hands the document to someone else.
+          if (data.status === "reviewing") {
+            toast.success(t(($) => $.audit.report.submitted_toast));
+          }
+        },
+        onError: (err: unknown) => toast.error(reportRefusal(t, err)),
+      },
     );
   };
 
