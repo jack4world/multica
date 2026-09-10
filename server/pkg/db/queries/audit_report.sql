@@ -82,3 +82,11 @@ WHERE project_id = $1;
 
 -- name: DeleteAuditReportsForProject :exec
 DELETE FROM audit_report WHERE project_id = $1;
+
+-- name: GetIssuedAuditReport :one
+-- The report the archive is built around. An engagement with no issued report
+-- is not an audit anyone can file.
+SELECT * FROM audit_report
+WHERE project_id = $1 AND workspace_id = $2 AND status = 'issued'
+ORDER BY version DESC
+LIMIT 1;

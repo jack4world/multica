@@ -183,10 +183,21 @@ func (f *Fixture) Issue(t TB, title string, over ...Cols) string {
 		"position":     0,
 	}, over)
 	if _, ok := cols["number"]; !ok {
+		// Taken from the workspace's counter, the way the product takes it,
+		// rather than from MAX(number). A fixture that leaves the counter
+		// behind the numbers it has used hands the NEXT handler-created issue
+		// in that workspace a number already taken, and the collision surfaces
+		// as an unrelated 500 in whichever test mixed fixtures with the API.
 		workspaceID, _ := cols["workspace_id"].(string)
-		cols["number"] = Raw(fmt.Sprintf(
-			"(SELECT COALESCE(MAX(number), 0) + 1 FROM issue WHERE workspace_id = %s)",
-			quoteLiteral(workspaceID)))
+		var number int
+		f.QueryRow(t, `UPDATE workspace
+		     SET issue_counter = GREATEST(
+		         issue_counter,
+		         COALESCE((SELECT MAX(number) FROM issue WHERE workspace_id = $1), 0)
+		     ) + 1
+		     WHERE id = $1
+		     RETURNING issue_counter`, workspaceID).Scan(&number)
+		cols["number"] = number
 	}
 	return f.Insert(t, "issue", cols)
 }

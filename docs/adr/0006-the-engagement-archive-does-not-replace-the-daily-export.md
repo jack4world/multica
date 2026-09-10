@@ -1,0 +1,18 @@
+# The engagement archive is written once at close, and does not replace the daily trail export
+
+An audit ends with an archive: 一套完整、有索引、不可篡改的卷宗 — the report, the workpapers that support it, the evidence behind those, and an index, kept for as long as the records policy says. What the vertical had was a daily trail export: one file per auditee per day of `activity_log` entries. That is the right shape for "the trail survives the database" and the wrong shape for "hand me the 2025 离任审计 file". Nobody archives an audit one day at a time.
+
+`POST /api/projects/{id}/archive` writes the engagement's whole file under one prefix — `report.md`, `report.json`, `workpapers.jsonl`, `trail.jsonl`, `remediation.jsonl`, `attachments.jsonl` — and then a `manifest.json` carrying a sha256 and a record count per file.
+
+**The daily export stays, and this is the load-bearing part.** An auditee's trail includes work that belongs to no engagement — every remediation item, by definition — and the export is what survives the workspace itself being deleted. The archive answers "what did this audit contain"; the export answers "what happened in this auditee, durably". Removing the export because the archive exists would silently drop the first question's coverage for everything outside an engagement.
+
+## Consequences
+
+- **Every precondition is a refusal, not a warning.** An issued report must exist (a closed engagement with no report is not an audit anyone can file); every workpaper must be filed or cancelled (an archive taken over unfinished work presents it as a closed file); the engagement must not already be archived; and a missing archive destination is a **503**, because reporting success while writing nowhere is the worst possible failure for this feature.
+- **The manifest is written last**, exactly as the daily export does it: a reader treats a prefix with no manifest as unfinished, so a crash between files leaves an archive that announces itself as incomplete rather than one that lies about being whole.
+- **The build is deterministic.** The same input twice produces byte-identical output, so a retry after an interrupted run is safe and a digest that no longer matches its file is evidence of an edit rather than of a retry. Record order in the database never reaches the file.
+- **The engagement is stamped after the files exist.** A crash in between leaves an unarchived engagement beside a complete set of files; re-running overwrites them with identical bytes.
+- **Archiving takes the same signature as issuing the report** (`auditreport.SigningLevel` over the engagement's depth). Closing the file is the same act as putting the report out, and workspace admin is not a way around either.
+- **An archived engagement refuses further governed work**, including a new workpaper created inside it. The limit is worth stating plainly: a write the gate does not govern at all — editing the text of a cancelled workpaper — still passes, because the gate short-circuits on status keys before it reads anything. What an archived engagement is made of is filed workpapers, which are already immutable.
+- **Property values are archived by name.** A stored bag is keyed by definition id and holds option ids; both are meaningless to someone opening the file in three years, and retired definitions are resolved too. A value whose definition is gone keeps its raw key rather than being dropped — an archive must never be quietly shorter than the record.
+- **The destination is `AUDIT_EXPORT_DIR`**, shared with the trail export, so one bucket policy covers both and the existing refusal to sit inside the publicly served upload directory protects both.

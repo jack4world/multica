@@ -137,6 +137,47 @@ func (q *Queries) GetAuditReport(ctx context.Context, arg GetAuditReportParams) 
 	return i, err
 }
 
+const getIssuedAuditReport = `-- name: GetIssuedAuditReport :one
+SELECT id, workspace_id, project_id, version, status, title, background, basis, scope, opinion, requirements, findings_snapshot, workpaper_count, filed_workpaper_count, created_by, issued_by, issued_at, created_at, updated_at FROM audit_report
+WHERE project_id = $1 AND workspace_id = $2 AND status = 'issued'
+ORDER BY version DESC
+LIMIT 1
+`
+
+type GetIssuedAuditReportParams struct {
+	ProjectID   pgtype.UUID `json:"project_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// The report the archive is built around. An engagement with no issued report
+// is not an audit anyone can file.
+func (q *Queries) GetIssuedAuditReport(ctx context.Context, arg GetIssuedAuditReportParams) (AuditReport, error) {
+	row := q.db.QueryRow(ctx, getIssuedAuditReport, arg.ProjectID, arg.WorkspaceID)
+	var i AuditReport
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.Version,
+		&i.Status,
+		&i.Title,
+		&i.Background,
+		&i.Basis,
+		&i.Scope,
+		&i.Opinion,
+		&i.Requirements,
+		&i.FindingsSnapshot,
+		&i.WorkpaperCount,
+		&i.FiledWorkpaperCount,
+		&i.CreatedBy,
+		&i.IssuedBy,
+		&i.IssuedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const issueAuditReport = `-- name: IssueAuditReport :one
 UPDATE audit_report SET
     status = 'issued',

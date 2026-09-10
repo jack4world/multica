@@ -573,15 +573,16 @@ func (h *Handler) auditGateInput(ctx context.Context, q *db.Queries, g *reviewGa
 		engagement = g.targetProject
 	}
 	if engagement.Valid {
-		levels, levelsErr := q.GetEngagementReviewLevels(ctx, db.GetEngagementReviewLevelsParams{
+		facts, factsErr := q.GetEngagementGateFacts(ctx, db.GetEngagementGateFactsParams{
 			ID:          engagement,
 			WorkspaceID: g.prev.WorkspaceID,
 		})
-		if levelsErr != nil && !errors.Is(levelsErr, pgx.ErrNoRows) {
-			return in, pgtype.UUID{}, levelsErr
+		if factsErr != nil && !errors.Is(factsErr, pgx.ErrNoRows) {
+			return in, pgtype.UUID{}, factsErr
 		}
-		if levelsErr == nil {
-			in.ReviewLevels = int(levels)
+		if factsErr == nil {
+			in.ReviewLevels = int(facts.ReviewLevels)
+			in.EngagementArchived = facts.Archived
 		}
 	}
 

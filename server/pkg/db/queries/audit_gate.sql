@@ -7,10 +7,13 @@ SELECT (audit_mode_enabled_at IS NOT NULL)::bool AS enabled
 FROM workspace
 WHERE id = $1;
 
--- name: GetEngagementReviewLevels :one
--- How many review levels this engagement runs. Read on the write path of every
--- governed transition, by primary key.
-SELECT review_levels FROM project
+-- name: GetEngagementGateFacts :one
+-- What the gate needs to know about the engagement: how many review levels it
+-- runs, and whether its file has been closed. Read on the write path of every
+-- governed transition, by primary key — one row rather than two reads, because
+-- the two facts have to come from the same snapshot as each other.
+SELECT review_levels, (audit_archived_at IS NOT NULL)::bool AS archived
+FROM project
 WHERE id = $1 AND workspace_id = $2;
 
 -- name: CountWorkpapersAboveDepth :one
@@ -240,3 +243,51 @@ RETURNING *;
 
 -- name: DeleteAuditDocument :execrows
 DELETE FROM audit_document WHERE id = $1 AND workspace_id = $2;
+
+-- name: ListWorkpapersForArchive :many
+-- Every workpaper in the engagement, with the audit-only facts that make "who
+-- checked this" answerable from the archived file alone.
+SELECT i.id, i.number, i.title, i.status, i.properties, i.updated_at,
+       w.preparer_id, w.submitted_at
+FROM issue i
+LEFT JOIN audit_workpaper w ON w.issue_id = i.id
+WHERE i.project_id = $1
+ORDER BY i.number ASC;
+
+-- name: CountUnfinishedWorkpapers :one
+-- Workpapers still in the chain. An archive taken over them would be a snapshot
+-- of unfinished work presented as a closed file.
+SELECT COUNT(*)::bigint FROM issue
+WHERE project_id = $1
+  AND status <> sqlc.arg('filed_status')::text
+  AND status <> 'cancelled';
+
+-- name: ListTrailForProject :many
+-- Every trail entry for this engagement: its issues', plus the report's own,
+-- which carry no issue_id because a report is not an issue.
+SELECT a.id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at
+FROM activity_log a
+WHERE a.workspace_id = sqlc.arg('workspace_id')::uuid
+  AND (
+      a.issue_id IN (SELECT id FROM issue WHERE project_id = sqlc.arg('project_id')::uuid)
+      OR (a.issue_id IS NULL
+          AND a.details->>'project_id' = sqlc.arg('project_id_text')::text)
+  )
+ORDER BY a.created_at ASC, a.id ASC;
+
+-- name: ListAttachmentsForProject :many
+-- The evidence index. The bytes stay in the attachment store; what the archive
+-- records is that this file, of this size, hung on that workpaper — which is
+-- what makes a later disappearance detectable.
+SELECT at.id, at.issue_id, at.filename, at.content_type, at.size_bytes
+FROM attachment at
+WHERE at.issue_id IN (SELECT id FROM issue WHERE project_id = $1)
+ORDER BY at.id ASC;
+
+-- name: MarkEngagementArchived :one
+UPDATE project
+SET audit_archived_at = now(),
+    audit_archive_key = sqlc.arg('archive_key')::text,
+    updated_at = now()
+WHERE id = sqlc.arg('id')::uuid AND workspace_id = sqlc.arg('workspace_id')::uuid
+RETURNING *;

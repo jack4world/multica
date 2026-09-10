@@ -52,6 +52,27 @@ func (q *Queries) CountDocumentsUnderCategory(ctx context.Context, arg CountDocu
 	return column_1, err
 }
 
+const countUnfinishedWorkpapers = `-- name: CountUnfinishedWorkpapers :one
+SELECT COUNT(*)::bigint FROM issue
+WHERE project_id = $1
+  AND status <> $2::text
+  AND status <> 'cancelled'
+`
+
+type CountUnfinishedWorkpapersParams struct {
+	ProjectID   pgtype.UUID `json:"project_id"`
+	FiledStatus string      `json:"filed_status"`
+}
+
+// Workpapers still in the chain. An archive taken over them would be a snapshot
+// of unfinished work presented as a closed file.
+func (q *Queries) CountUnfinishedWorkpapers(ctx context.Context, arg CountUnfinishedWorkpapersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countUnfinishedWorkpapers, arg.ProjectID, arg.FiledStatus)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countWorkpapersAboveDepth = `-- name: CountWorkpapersAboveDepth :one
 SELECT COUNT(*)::bigint FROM issue
 WHERE project_id = $1
@@ -311,23 +332,31 @@ func (q *Queries) GetAuditRoleLevel(ctx context.Context, arg GetAuditRoleLevelPa
 	return level, err
 }
 
-const getEngagementReviewLevels = `-- name: GetEngagementReviewLevels :one
-SELECT review_levels FROM project
+const getEngagementGateFacts = `-- name: GetEngagementGateFacts :one
+SELECT review_levels, (audit_archived_at IS NOT NULL)::bool AS archived
+FROM project
 WHERE id = $1 AND workspace_id = $2
 `
 
-type GetEngagementReviewLevelsParams struct {
+type GetEngagementGateFactsParams struct {
 	ID          pgtype.UUID `json:"id"`
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-// How many review levels this engagement runs. Read on the write path of every
-// governed transition, by primary key.
-func (q *Queries) GetEngagementReviewLevels(ctx context.Context, arg GetEngagementReviewLevelsParams) (int32, error) {
-	row := q.db.QueryRow(ctx, getEngagementReviewLevels, arg.ID, arg.WorkspaceID)
-	var review_levels int32
-	err := row.Scan(&review_levels)
-	return review_levels, err
+type GetEngagementGateFactsRow struct {
+	ReviewLevels int32 `json:"review_levels"`
+	Archived     bool  `json:"archived"`
+}
+
+// What the gate needs to know about the engagement: how many review levels it
+// runs, and whether its file has been closed. Read on the write path of every
+// governed transition, by primary key — one row rather than two reads, because
+// the two facts have to come from the same snapshot as each other.
+func (q *Queries) GetEngagementGateFacts(ctx context.Context, arg GetEngagementGateFactsParams) (GetEngagementGateFactsRow, error) {
+	row := q.db.QueryRow(ctx, getEngagementGateFacts, arg.ID, arg.WorkspaceID)
+	var i GetEngagementGateFactsRow
+	err := row.Scan(&i.ReviewLevels, &i.Archived)
+	return i, err
 }
 
 const getWorkpaperPreparer = `-- name: GetWorkpaperPreparer :one
@@ -357,6 +386,50 @@ func (q *Queries) IsWorkspaceAuditMode(ctx context.Context, id pgtype.UUID) (boo
 	var enabled bool
 	err := row.Scan(&enabled)
 	return enabled, err
+}
+
+const listAttachmentsForProject = `-- name: ListAttachmentsForProject :many
+SELECT at.id, at.issue_id, at.filename, at.content_type, at.size_bytes
+FROM attachment at
+WHERE at.issue_id IN (SELECT id FROM issue WHERE project_id = $1)
+ORDER BY at.id ASC
+`
+
+type ListAttachmentsForProjectRow struct {
+	ID          pgtype.UUID `json:"id"`
+	IssueID     pgtype.UUID `json:"issue_id"`
+	Filename    string      `json:"filename"`
+	ContentType string      `json:"content_type"`
+	SizeBytes   int64       `json:"size_bytes"`
+}
+
+// The evidence index. The bytes stay in the attachment store; what the archive
+// records is that this file, of this size, hung on that workpaper — which is
+// what makes a later disappearance detectable.
+func (q *Queries) ListAttachmentsForProject(ctx context.Context, projectID pgtype.UUID) ([]ListAttachmentsForProjectRow, error) {
+	rows, err := q.db.Query(ctx, listAttachmentsForProject, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttachmentsForProjectRow{}
+	for rows.Next() {
+		var i ListAttachmentsForProjectRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.IssueID,
+			&i.Filename,
+			&i.ContentType,
+			&i.SizeBytes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAuditDocumentCategories = `-- name: ListAuditDocumentCategories :many
@@ -654,6 +727,115 @@ func (q *Queries) ListReviewQueueForMember(ctx context.Context, arg ListReviewQu
 	return items, nil
 }
 
+const listTrailForProject = `-- name: ListTrailForProject :many
+SELECT a.id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at
+FROM activity_log a
+WHERE a.workspace_id = $1::uuid
+  AND (
+      a.issue_id IN (SELECT id FROM issue WHERE project_id = $2::uuid)
+      OR (a.issue_id IS NULL
+          AND a.details->>'project_id' = $3::text)
+  )
+ORDER BY a.created_at ASC, a.id ASC
+`
+
+type ListTrailForProjectParams struct {
+	WorkspaceID   pgtype.UUID `json:"workspace_id"`
+	ProjectID     pgtype.UUID `json:"project_id"`
+	ProjectIDText string      `json:"project_id_text"`
+}
+
+type ListTrailForProjectRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	IssueID   pgtype.UUID        `json:"issue_id"`
+	ActorType pgtype.Text        `json:"actor_type"`
+	ActorID   pgtype.UUID        `json:"actor_id"`
+	Action    string             `json:"action"`
+	Details   []byte             `json:"details"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// Every trail entry for this engagement: its issues', plus the report's own,
+// which carry no issue_id because a report is not an issue.
+func (q *Queries) ListTrailForProject(ctx context.Context, arg ListTrailForProjectParams) ([]ListTrailForProjectRow, error) {
+	rows, err := q.db.Query(ctx, listTrailForProject, arg.WorkspaceID, arg.ProjectID, arg.ProjectIDText)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTrailForProjectRow{}
+	for rows.Next() {
+		var i ListTrailForProjectRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.IssueID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.Action,
+			&i.Details,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkpapersForArchive = `-- name: ListWorkpapersForArchive :many
+SELECT i.id, i.number, i.title, i.status, i.properties, i.updated_at,
+       w.preparer_id, w.submitted_at
+FROM issue i
+LEFT JOIN audit_workpaper w ON w.issue_id = i.id
+WHERE i.project_id = $1
+ORDER BY i.number ASC
+`
+
+type ListWorkpapersForArchiveRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	Number      int32              `json:"number"`
+	Title       string             `json:"title"`
+	Status      string             `json:"status"`
+	Properties  []byte             `json:"properties"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	PreparerID  pgtype.UUID        `json:"preparer_id"`
+	SubmittedAt pgtype.Timestamptz `json:"submitted_at"`
+}
+
+// Every workpaper in the engagement, with the audit-only facts that make "who
+// checked this" answerable from the archived file alone.
+func (q *Queries) ListWorkpapersForArchive(ctx context.Context, projectID pgtype.UUID) ([]ListWorkpapersForArchiveRow, error) {
+	rows, err := q.db.Query(ctx, listWorkpapersForArchive, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkpapersForArchiveRow{}
+	for rows.Next() {
+		var i ListWorkpapersForArchiveRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Number,
+			&i.Title,
+			&i.Status,
+			&i.Properties,
+			&i.UpdatedAt,
+			&i.PreparerID,
+			&i.SubmittedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaceActivityForDay = `-- name: ListWorkspaceActivityForDay :many
 SELECT id, issue_id, actor_type, actor_id, action, details, created_at
 FROM activity_log
@@ -763,6 +945,49 @@ func (q *Queries) LockIssueForReviewGate(ctx context.Context, arg LockIssueForRe
 		&i.Properties,
 		&i.Revision,
 		&i.LastActivityAt,
+	)
+	return i, err
+}
+
+const markEngagementArchived = `-- name: MarkEngagementArchived :one
+UPDATE project
+SET audit_archived_at = now(),
+    audit_archive_key = $1::text,
+    updated_at = now()
+WHERE id = $2::uuid AND workspace_id = $3::uuid
+RETURNING id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type, review_levels, audit_phase, audit_archived_at, audit_archive_key
+`
+
+type MarkEngagementArchivedParams struct {
+	ArchiveKey  string      `json:"archive_key"`
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) MarkEngagementArchived(ctx context.Context, arg MarkEngagementArchivedParams) (Project, error) {
+	row := q.db.QueryRow(ctx, markEngagementArchived, arg.ArchiveKey, arg.ID, arg.WorkspaceID)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.Icon,
+		&i.Status,
+		&i.LeadType,
+		&i.LeadID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Priority,
+		&i.StartDate,
+		&i.DueDate,
+		&i.AuditPeriodStart,
+		&i.AuditPeriodEnd,
+		&i.AuditType,
+		&i.ReviewLevels,
+		&i.AuditPhase,
+		&i.AuditArchivedAt,
+		&i.AuditArchiveKey,
 	)
 	return i, err
 }

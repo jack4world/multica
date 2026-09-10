@@ -74,6 +74,10 @@ _Avoid_: 报告, 底稿汇总, summary
 The moment a report becomes the department's statement rather than one person's, made by the top rank the engagement runs. Snapshots what the report asserted — the items cited and the work behind it — so the document says in June what it said when it went out.
 _Avoid_: 发布, 提交, publish
 
+**审计档案 (Engagement Archive)**:
+One finished engagement written out as a complete, indexed set of files: the issued report, the workpapers behind it, the evidence index, the trail, and the items it raised — with a manifest carrying a digest of each. Written once, at close. Distinct from 归档, which is a workpaper reaching its terminal state.
+_Avoid_: 归档 (which is about a workpaper), 备份, backup
+
 **审计发现 (Finding)**:
 A problem confirmed to be real. Not a stored entity: a finding is the remediation item that one or more confirmed observations point at.
 _Avoid_: 疑点, 风险
