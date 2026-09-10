@@ -45,10 +45,14 @@ type ProjectResponse struct {
 	AuditType        *string `json:"audit_type,omitempty"`
 	ReviewLevels     int     `json:"review_levels"`
 	AuditPhase       *string `json:"audit_phase,omitempty"`
-	CreatedAt        string  `json:"created_at"`
-	UpdatedAt        string  `json:"updated_at"`
-	IssueCount       int64   `json:"issue_count"`
-	DoneCount        int64   `json:"done_count"`
+	// AuditArchivedAt is when the engagement's file was closed. The archive KEY
+	// is deliberately not here: it is a storage path, and the person who closed
+	// the file already has it.
+	AuditArchivedAt *string `json:"audit_archived_at,omitempty"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
+	IssueCount      int64   `json:"issue_count"`
+	DoneCount       int64   `json:"done_count"`
 	// ResourceCount is a breadcrumb pointing at the sub-collection at
 	// /api/projects/{id}/resources. Resources themselves stay out of this
 	// payload to keep parent metadata and child collections separate; clients
@@ -77,6 +81,7 @@ func projectToResponse(p db.Project) ProjectResponse {
 		AuditType:        textToPtr(p.AuditType),
 		ReviewLevels:     int(p.ReviewLevels),
 		AuditPhase:       textToPtr(p.AuditPhase),
+		AuditArchivedAt:  timestampToPtr(p.AuditArchivedAt),
 	}
 }
 

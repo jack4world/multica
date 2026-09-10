@@ -1257,6 +1257,8 @@ type Project struct {
 	AuditType        pgtype.Text        `json:"audit_type"`
 	ReviewLevels     int32              `json:"review_levels"`
 	AuditPhase       pgtype.Text        `json:"audit_phase"`
+	AuditArchivedAt  pgtype.Timestamptz `json:"audit_archived_at"`
+	AuditArchiveKey  pgtype.Text        `json:"audit_archive_key"`
 }
 
 type ProjectResource struct {

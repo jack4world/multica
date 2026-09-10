@@ -33,6 +33,11 @@ export interface Project {
    * default-case an unknown value.
    */
   audit_phase?: string | null;
+  /**
+   * When the engagement's file was closed. An archived engagement takes no
+   * further work. Absent while it is open.
+   */
+  audit_archived_at?: string | null;
   created_at: string;
   updated_at: string;
   issue_count: number;

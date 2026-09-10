@@ -2034,6 +2034,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/remediation", h.RaiseRemediationItem)
 					r.Get("/reports", h.ListAuditReports)
 					r.Post("/reports", h.CreateAuditReport)
+					// Closing the engagement's file. Takes the same signature
+					// as issuing its report, and refuses outright when no
+					// archive destination is configured.
+					r.Post("/archive", h.ArchiveEngagement)
 				})
 			})
 

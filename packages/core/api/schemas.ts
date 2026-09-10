@@ -1318,6 +1318,9 @@ const ProjectSchema = z.object({
   // field runs the chain the frontend should assume: two.
   review_levels: z.number().default(2),
   audit_phase: z.string().nullable().default(null),
+  // Present once the engagement's file has been closed. The archive key is
+  // deliberately server-side only.
+  audit_archived_at: z.string().nullable().default(null),
   created_at: z.string(),
   updated_at: z.string(),
   issue_count: z.number().default(0),

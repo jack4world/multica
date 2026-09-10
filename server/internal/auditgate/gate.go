@@ -104,6 +104,7 @@ const (
 	DenyAgent             DenyCode = "agent_not_permitted"
 	DenyLeavesChain       DenyCode = "leaves_chain"
 	DenyReasonRequired    DenyCode = "reason_required"
+	DenyArchived          DenyCode = "engagement_archived"
 )
 
 // Input is everything the decision depends on. All values, all supplied by the
@@ -143,6 +144,10 @@ type Input struct {
 	// Reason is the free text accompanying the write. Required on a rejection
 	// and ignored otherwise.
 	Reason string
+	// EngagementArchived reports that the engagement's file has been closed.
+	// An archived engagement takes no more work: the archive is a statement
+	// about what the file contained at the moment it was written.
+	EngagementArchived bool
 	// IsRemediationItem reports that this issue is on the 整改台账. It is
 	// consulted only when the write moves the issue between projects: a
 	// remediation item belongs to no engagement by definition, and dragging one
@@ -265,6 +270,14 @@ func Decide(in Input) Decision {
 	}
 	if !in.InEngagement && !in.TargetInEngagement {
 		return allow()
+	}
+
+	// An archived engagement is a closed file. Checked before everything else,
+	// including the project-change rules, so no rank and no admin reads as an
+	// exception to it — and so a new workpaper cannot be created inside one.
+	if in.EngagementArchived {
+		return deny(DenyArchived,
+			"this engagement is archived; its file is closed, and further work belongs to a new engagement")
 	}
 
 	// Engagement membership is what makes an issue a workpaper, so a write that

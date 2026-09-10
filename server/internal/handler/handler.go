@@ -226,8 +226,15 @@ type Handler struct {
 	LivenessStore      LivenessStore
 	HeartbeatScheduler HeartbeatScheduler
 	Storage            storage.Storage
-	CFSigner           *auth.CloudFrontSigner
-	Analytics          analytics.Client
+	// AuditArchiveStorage is where an archived engagement's file is written.
+	// NEVER h.Storage: the attachment store is served publicly on local
+	// deployments and sits behind the CDN on S3, and an audit file must not be
+	// reachable by anyone who knows a workspace id. Nil means no destination is
+	// configured, and archiving refuses rather than reporting success while
+	// writing nowhere.
+	AuditArchiveStorage storage.Storage
+	CFSigner            *auth.CloudFrontSigner
+	Analytics           analytics.Client
 	// DaemonPendingWork pushes "heartbeat now" hints for queued
 	// heartbeat-carried requests (MUL-5444). Optional: when nil,
 	// requestDaemonPendingWork falls back to the local DaemonHub, which is the
@@ -464,29 +471,35 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// a disabled client, which turns the feature off rather than failing.
 	taskSvc.QuickActions = llmClient
 	h := &Handler{
-		Queries:                      queries,
-		ReadSelector:                 dbreader.NewPrimaryOnly(queries),
-		DB:                           executor,
-		TxStarter:                    txStarter,
-		Hub:                          hub,
-		DaemonHub:                    daemonHub,
-		DaemonProfileRefresh:         daemonProfileRefresh,
-		DaemonWorkspaceRefresh:       daemonWorkspaceRefresh,
-		DaemonRuntimeGone:            daemonRuntimeGone,
-		Bus:                          bus,
-		TaskService:                  taskSvc,
-		PluginService:                service.NewPluginService(queries, txStarter),
-		IssueService:                 service.NewIssueService(queries, txStarter, bus, analyticsClient, taskSvc),
-		AutopilotService:             service.NewAutopilotService(queries, txStarter, bus, taskSvc),
-		EmailService:                 emailService,
-		UpdateStore:                  NewInMemoryUpdateStore(),
-		ModelListStore:               NewInMemoryModelListStore(),
-		ModelCatalogCache:            NewInMemoryModelCatalogCache(),
-		LocalSkillListStore:          NewInMemoryLocalSkillListStore(),
-		LocalSkillImportStore:        NewInMemoryLocalSkillImportStore(),
-		LivenessStore:                NewNoopLivenessStore(),
-		HeartbeatScheduler:           NewPassthroughHeartbeatScheduler(queries),
-		Storage:                      store,
+		Queries:                queries,
+		ReadSelector:           dbreader.NewPrimaryOnly(queries),
+		DB:                     executor,
+		TxStarter:              txStarter,
+		Hub:                    hub,
+		DaemonHub:              daemonHub,
+		DaemonProfileRefresh:   daemonProfileRefresh,
+		DaemonWorkspaceRefresh: daemonWorkspaceRefresh,
+		DaemonRuntimeGone:      daemonRuntimeGone,
+		Bus:                    bus,
+		TaskService:            taskSvc,
+		PluginService:          service.NewPluginService(queries, txStarter),
+		IssueService:           service.NewIssueService(queries, txStarter, bus, analyticsClient, taskSvc),
+		AutopilotService:       service.NewAutopilotService(queries, txStarter, bus, taskSvc),
+		EmailService:           emailService,
+		UpdateStore:            NewInMemoryUpdateStore(),
+		ModelListStore:         NewInMemoryModelListStore(),
+		ModelCatalogCache:      NewInMemoryModelCatalogCache(),
+		LocalSkillListStore:    NewInMemoryLocalSkillListStore(),
+		LocalSkillImportStore:  NewInMemoryLocalSkillImportStore(),
+		LivenessStore:          NewNoopLivenessStore(),
+		HeartbeatScheduler:     NewPassthroughHeartbeatScheduler(queries),
+		Storage:                store,
+		// Read from the environment here rather than threaded through New:
+		// every caller would otherwise have to know about a destination that is
+		// unset on every deployment not running the audit vertical, and the
+		// constructor refuses a directory inside the publicly served upload
+		// directory whichever caller asks.
+		AuditArchiveStorage:          storage.NewAuditExportStorageFromEnv(),
 		CFSigner:                     cfSigner,
 		Analytics:                    analyticsClient,
 		WebhookRateLimiter:           NewMemoryWebhookRateLimiter(DefaultWebhookRateLimit()),
