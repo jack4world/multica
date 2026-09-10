@@ -1314,6 +1314,10 @@ const ProjectSchema = z.object({
   audit_period_start: z.string().nullable().default(null),
   audit_period_end: z.string().nullable().default(null),
   audit_type: z.string().nullable().default(null),
+  // How many review levels this engagement runs. A server that predates the
+  // field runs the chain the frontend should assume: two.
+  review_levels: z.number().default(2),
+  audit_phase: z.string().nullable().default(null),
   created_at: z.string(),
   updated_at: z.string(),
   issue_count: z.number().default(0),

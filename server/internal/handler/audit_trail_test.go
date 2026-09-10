@@ -47,6 +47,9 @@ type trailEntry struct {
 
 func TestTheTrailRecordsEveryStepOfTheChainInOrder(t *testing.T) {
 	f := newAuditFixture(t)
+	// Three levels so the two review_passed entries have to hold their order
+	// relative to each other, not only to the steps around them.
+	f.setDepth(t, 3).Want(http.StatusOK)
 	wp := f.workpaper(t, auditmode.StatusDrafting)
 	dbfx.Cleanup(t, `DELETE FROM activity_log WHERE issue_id = $1`, wp)
 

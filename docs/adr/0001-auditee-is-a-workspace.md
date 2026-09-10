@@ -6,6 +6,6 @@ Choosing the workspace boundary makes that entire cross-cutting surface disappea
 
 ## Consequences
 
-- `confidentiality_level` is a display label only. It filters nothing. Anything that needs to *enforce* separation must become a separate workspace.
+- Anything that needs to *enforce* separation must become a separate workspace. The vertical shipped a `confidentiality_level` display label under this decision and later removed it: a field that looks like a permission and filters nothing is worse than no field, because people act on it.
 - Workspace-scoped configuration (status catalog, custom properties, skills) is per-auditee, so onboarding a new auditee means seeding it. Cross-auditee risk roll-up has no native path and must be built deliberately.
 - If two audit teams inside the same auditee ever need to be kept apart from each other, this decision does not cover it and engagement-level ACL becomes a separate, separately-scheduled security project.

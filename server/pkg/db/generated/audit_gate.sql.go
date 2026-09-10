@@ -52,6 +52,27 @@ func (q *Queries) CountDocumentsUnderCategory(ctx context.Context, arg CountDocu
 	return column_1, err
 }
 
+const countWorkpapersAboveDepth = `-- name: CountWorkpapersAboveDepth :one
+SELECT COUNT(*)::bigint FROM issue
+WHERE project_id = $1
+  AND status = ANY($2::text[])
+`
+
+type CountWorkpapersAboveDepthParams struct {
+	ProjectID      pgtype.UUID `json:"project_id"`
+	BeyondStatuses []string    `json:"beyond_statuses"`
+}
+
+// Workpapers sitting at a review stage the engagement would no longer have.
+// Lowering the depth under one of them would strand it: a configuration
+// correction must not become a data problem.
+func (q *Queries) CountWorkpapersAboveDepth(ctx context.Context, arg CountWorkpapersAboveDepthParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkpapersAboveDepth, arg.ProjectID, arg.BeyondStatuses)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createAuditDocument = `-- name: CreateAuditDocument :one
 INSERT INTO audit_document (workspace_id, attachment_id, category_path, title, uploader_type, uploader_id)
 VALUES (
@@ -288,6 +309,25 @@ func (q *Queries) GetAuditRoleLevel(ctx context.Context, arg GetAuditRoleLevelPa
 	var level string
 	err := row.Scan(&level)
 	return level, err
+}
+
+const getEngagementReviewLevels = `-- name: GetEngagementReviewLevels :one
+SELECT review_levels FROM project
+WHERE id = $1 AND workspace_id = $2
+`
+
+type GetEngagementReviewLevelsParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// How many review levels this engagement runs. Read on the write path of every
+// governed transition, by primary key.
+func (q *Queries) GetEngagementReviewLevels(ctx context.Context, arg GetEngagementReviewLevelsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getEngagementReviewLevels, arg.ID, arg.WorkspaceID)
+	var review_levels int32
+	err := row.Scan(&review_levels)
+	return review_levels, err
 }
 
 const getWorkpaperPreparer = `-- name: GetWorkpaperPreparer :one

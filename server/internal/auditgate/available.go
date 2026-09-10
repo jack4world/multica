@@ -75,6 +75,6 @@ func requiresReason(from, to string) bool {
 	if to != auditmode.StatusDrafting {
 		return false
 	}
-	_, isReview := levelFor(from)
+	_, isReview := ordinalOf(from)
 	return isReview
 }

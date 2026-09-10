@@ -96,3 +96,37 @@ func parseOptionalDate(v, field string) (*time.Time, error) {
 	}
 	return &parsed, nil
 }
+
+// Engagement phases. 立项/准备 → 现场实施 → 报告 → 后续跟踪.
+//
+// A fixed list, because being able to count engagements by phase is the reason
+// to record the phase: a department head is asked how much work is in fieldwork
+// against how much is in reporting, and free text cannot answer that.
+//
+// A field to see by, NOT a second workflow: nothing gates a transition on the
+// phase, and nothing advances it automatically. One control per product is
+// enough.
+const (
+	PhasePreparation = "preparation"
+	PhaseFieldwork   = "fieldwork"
+	PhaseReporting   = "reporting"
+	PhaseFollowUp    = "follow_up"
+)
+
+// Phases lists the phases in the order an engagement moves through them.
+func Phases() []string {
+	return []string{PhasePreparation, PhaseFieldwork, PhaseReporting, PhaseFollowUp}
+}
+
+// ValidPhase reports whether v names a phase.
+func ValidPhase(v string) bool {
+	for _, p := range Phases() {
+		if v == p {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidPhaseOrEmpty allows the unset case: an ordinary project has no phase.
+func ValidPhaseOrEmpty(v string) bool { return v == "" || ValidPhase(v) }

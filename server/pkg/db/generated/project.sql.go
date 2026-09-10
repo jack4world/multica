@@ -29,7 +29,7 @@ INSERT INTO project (
     lead_type, lead_id, priority, start_date, due_date
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
-) RETURNING id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type
+) RETURNING id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type, review_levels, audit_phase
 `
 
 type CreateProjectParams struct {
@@ -76,6 +76,8 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.AuditPeriodStart,
 		&i.AuditPeriodEnd,
 		&i.AuditType,
+		&i.ReviewLevels,
+		&i.AuditPhase,
 	)
 	return i, err
 }
@@ -96,7 +98,7 @@ func (q *Queries) DeleteProject(ctx context.Context, arg DeleteProjectParams) er
 }
 
 const getProjectInWorkspace = `-- name: GetProjectInWorkspace :one
-SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type FROM project
+SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type, review_levels, audit_phase FROM project
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -125,6 +127,8 @@ func (q *Queries) GetProjectInWorkspace(ctx context.Context, arg GetProjectInWor
 		&i.AuditPeriodStart,
 		&i.AuditPeriodEnd,
 		&i.AuditType,
+		&i.ReviewLevels,
+		&i.AuditPhase,
 	)
 	return i, err
 }
@@ -172,7 +176,7 @@ func (q *Queries) GetProjectIssueStats(ctx context.Context, arg GetProjectIssueS
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type FROM project
+SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type, review_levels, audit_phase FROM project
 WHERE workspace_id = $1
   AND ($2::text IS NULL OR status = $2)
   AND ($3::text IS NULL OR priority = $3)
@@ -211,6 +215,8 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 			&i.AuditPeriodStart,
 			&i.AuditPeriodEnd,
 			&i.AuditType,
+			&i.ReviewLevels,
+			&i.AuditPhase,
 		); err != nil {
 			return nil, err
 		}
@@ -279,9 +285,11 @@ UPDATE project SET
     audit_period_start = COALESCE($11, audit_period_start),
     audit_period_end = COALESCE($12, audit_period_end),
     audit_type = COALESCE($13, audit_type),
+    review_levels = COALESCE($14, review_levels),
+    audit_phase = COALESCE($15, audit_phase),
     updated_at = now()
 WHERE id = $1
-RETURNING id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type
+RETURNING id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, audit_period_start, audit_period_end, audit_type, review_levels, audit_phase
 `
 
 type UpdateProjectParams struct {
@@ -298,6 +306,8 @@ type UpdateProjectParams struct {
 	AuditPeriodStart pgtype.Date `json:"audit_period_start"`
 	AuditPeriodEnd   pgtype.Date `json:"audit_period_end"`
 	AuditType        pgtype.Text `json:"audit_type"`
+	ReviewLevels     pgtype.Int4 `json:"review_levels"`
+	AuditPhase       pgtype.Text `json:"audit_phase"`
 }
 
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
@@ -315,6 +325,8 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		arg.AuditPeriodStart,
 		arg.AuditPeriodEnd,
 		arg.AuditType,
+		arg.ReviewLevels,
+		arg.AuditPhase,
 	)
 	var i Project
 	err := row.Scan(
@@ -334,6 +346,8 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.AuditPeriodStart,
 		&i.AuditPeriodEnd,
 		&i.AuditType,
+		&i.ReviewLevels,
+		&i.AuditPhase,
 	)
 	return i, err
 }

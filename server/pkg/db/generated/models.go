@@ -1210,6 +1210,8 @@ type Project struct {
 	AuditPeriodStart pgtype.Date        `json:"audit_period_start"`
 	AuditPeriodEnd   pgtype.Date        `json:"audit_period_end"`
 	AuditType        pgtype.Text        `json:"audit_type"`
+	ReviewLevels     int32              `json:"review_levels"`
+	AuditPhase       pgtype.Text        `json:"audit_phase"`
 }
 
 type ProjectResource struct {

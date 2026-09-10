@@ -21,6 +21,18 @@ export interface Project {
   audit_period_end?: string | null;
   /** What kind of audit this engagement is. */
   audit_type?: string | null;
+  /**
+   * How many review levels this engagement runs, 1-3. Two is the default: a
+   * company's internal audit function reviews twice, and a third level means
+   * inventing a reviewer. Treat an absent value as 2.
+   */
+  review_levels?: number;
+  /**
+   * Where the engagement is in its lifecycle: preparation, fieldwork,
+   * reporting or follow_up. Null until someone records it. UI must
+   * default-case an unknown value.
+   */
+  audit_phase?: string | null;
   created_at: string;
   updated_at: string;
   issue_count: number;
@@ -54,6 +66,8 @@ export interface UpdateProjectRequest {
   // Omit the key to leave the date untouched; send null (or "") to clear it.
   start_date?: string | null;
   due_date?: string | null;
+  review_levels?: number;
+  audit_phase?: string | null;
 }
 
 export interface ListProjectsResponse {

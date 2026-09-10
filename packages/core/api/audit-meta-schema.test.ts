@@ -33,6 +33,10 @@ describe("audit metadata drift", () => {
     expect(parsed.projects).toHaveLength(1);
     expect(parsed.projects[0]?.audit_type).toBeNull();
     expect(parsed.projects[0]?.audit_period_start).toBeNull();
+    // Not null: a server with no such column runs the chain the default
+    // describes, and a UI that reads 0 levels would offer no review at all.
+    expect(parsed.projects[0]?.review_levels).toBe(2);
+    expect(parsed.projects[0]?.audit_phase).toBeNull();
   });
 
   it("keeps the fields when the server does send them", () => {
@@ -51,6 +55,8 @@ describe("audit metadata drift", () => {
           audit_period_start: "2025-01-01",
           audit_period_end: "2025-12-31",
           audit_type: "separation_of_office",
+          review_levels: 3,
+          audit_phase: "fieldwork",
           created_at: "2026-01-01T00:00:00Z",
           updated_at: "2026-01-01T00:00:00Z",
           match_source: "title",
@@ -62,6 +68,8 @@ describe("audit metadata drift", () => {
     });
     expect(parsed.projects[0]?.audit_type).toBe("separation_of_office");
     expect(parsed.projects[0]?.audit_period_end).toBe("2025-12-31");
+    expect(parsed.projects[0]?.review_levels).toBe(3);
+    expect(parsed.projects[0]?.audit_phase).toBe("fieldwork");
   });
 
   it("does not drop the whole list when one project is malformed", () => {

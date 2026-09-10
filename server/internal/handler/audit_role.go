@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -34,6 +35,17 @@ type AuditRoleResponse struct {
 type SetAuditRoleRequest struct {
 	MemberID string `json:"member_id"`
 	Level    string `json:"level"`
+}
+
+// levelWithinDepth reports whether a rank exists on an engagement of this
+// depth.
+func levelWithinDepth(level string, depth int) bool {
+	for _, l := range auditgate.LevelsUpTo(depth) {
+		if string(l) == level {
+			return true
+		}
+	}
+	return false
 }
 
 func auditRoleToResponse(row db.AuditRole) AuditRoleResponse {
@@ -139,6 +151,15 @@ func (h *Handler) SetAuditRole(w http.ResponseWriter, r *http.Request) {
 	}
 	if !auditgate.ValidLevel(req.Level) {
 		writeError(w, http.StatusBadRequest, "level must be one of: reviewer_l1, reviewer_l2, reviewer_l3")
+		return
+	}
+	// A 三级复核人 on a two-level engagement is a configuration error, and
+	// catching it when it is made is far cheaper than catching it when a
+	// workpaper cannot move and nobody knows why.
+	if !levelWithinDepth(req.Level, int(project.ReviewLevels)) {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf(
+			"this engagement runs %d review levels, so %s is not one of its ranks",
+			project.ReviewLevels, req.Level))
 		return
 	}
 	memberUUID, ok := parseUUIDOrBadRequest(w, req.MemberID, "member id")
