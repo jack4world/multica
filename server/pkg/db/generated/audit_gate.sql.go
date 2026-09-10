@@ -11,6 +11,167 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCategoryChildren = `-- name: CountCategoryChildren :one
+SELECT COUNT(*)::bigint FROM audit_document_category
+WHERE workspace_id = $1 AND path LIKE $2::text
+`
+
+type CountCategoryChildrenParams struct {
+	WorkspaceID       pgtype.UUID `json:"workspace_id"`
+	DescendantPattern string      `json:"descendant_pattern"`
+}
+
+// Sub-categories strictly below a path. The pattern carries the separator: a
+// prefix test without it counts 020 as a child of 02.
+func (q *Queries) CountCategoryChildren(ctx context.Context, arg CountCategoryChildrenParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCategoryChildren, arg.WorkspaceID, arg.DescendantPattern)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countDocumentsUnderCategory = `-- name: CountDocumentsUnderCategory :one
+SELECT COUNT(*)::bigint FROM audit_document
+WHERE workspace_id = $1
+  AND (category_path = $2::text
+       OR category_path LIKE $3::text)
+`
+
+type CountDocumentsUnderCategoryParams struct {
+	WorkspaceID       pgtype.UUID `json:"workspace_id"`
+	Path              string      `json:"path"`
+	DescendantPattern string      `json:"descendant_pattern"`
+}
+
+// This category AND everything beneath it, which is what "can I delete this"
+// has to ask: orphaning material by tidying the tree is silent.
+func (q *Queries) CountDocumentsUnderCategory(ctx context.Context, arg CountDocumentsUnderCategoryParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDocumentsUnderCategory, arg.WorkspaceID, arg.Path, arg.DescendantPattern)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const createAuditDocument = `-- name: CreateAuditDocument :one
+INSERT INTO audit_document (workspace_id, attachment_id, category_path, title, uploader_type, uploader_id)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text,
+    $5::text,
+    $6::uuid
+)
+RETURNING id, workspace_id, attachment_id, category_path, title, uploader_type, uploader_id, created_at, updated_at
+`
+
+type CreateAuditDocumentParams struct {
+	WorkspaceID  pgtype.UUID `json:"workspace_id"`
+	AttachmentID pgtype.UUID `json:"attachment_id"`
+	CategoryPath string      `json:"category_path"`
+	Title        string      `json:"title"`
+	UploaderType string      `json:"uploader_type"`
+	UploaderID   pgtype.UUID `json:"uploader_id"`
+}
+
+func (q *Queries) CreateAuditDocument(ctx context.Context, arg CreateAuditDocumentParams) (AuditDocument, error) {
+	row := q.db.QueryRow(ctx, createAuditDocument,
+		arg.WorkspaceID,
+		arg.AttachmentID,
+		arg.CategoryPath,
+		arg.Title,
+		arg.UploaderType,
+		arg.UploaderID,
+	)
+	var i AuditDocument
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.AttachmentID,
+		&i.CategoryPath,
+		&i.Title,
+		&i.UploaderType,
+		&i.UploaderID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createAuditDocumentCategory = `-- name: CreateAuditDocumentCategory :one
+INSERT INTO audit_document_category (workspace_id, path, name, position)
+VALUES (
+    $1::uuid,
+    $2::text,
+    $3::text,
+    $4::float8
+)
+RETURNING id, workspace_id, path, name, is_standard, position, created_at, updated_at
+`
+
+type CreateAuditDocumentCategoryParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Path        string      `json:"path"`
+	Name        string      `json:"name"`
+	Position    float64     `json:"position"`
+}
+
+func (q *Queries) CreateAuditDocumentCategory(ctx context.Context, arg CreateAuditDocumentCategoryParams) (AuditDocumentCategory, error) {
+	row := q.db.QueryRow(ctx, createAuditDocumentCategory,
+		arg.WorkspaceID,
+		arg.Path,
+		arg.Name,
+		arg.Position,
+	)
+	var i AuditDocumentCategory
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Path,
+		&i.Name,
+		&i.IsStandard,
+		&i.Position,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteAuditDocument = `-- name: DeleteAuditDocument :execrows
+DELETE FROM audit_document WHERE id = $1 AND workspace_id = $2
+`
+
+type DeleteAuditDocumentParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) DeleteAuditDocument(ctx context.Context, arg DeleteAuditDocumentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAuditDocument, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteAuditDocumentCategory = `-- name: DeleteAuditDocumentCategory :execrows
+DELETE FROM audit_document_category
+WHERE workspace_id = $1 AND path = $2
+`
+
+type DeleteAuditDocumentCategoryParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Path        string      `json:"path"`
+}
+
+func (q *Queries) DeleteAuditDocumentCategory(ctx context.Context, arg DeleteAuditDocumentCategoryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAuditDocumentCategory, arg.WorkspaceID, arg.Path)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteAuditRole = `-- name: DeleteAuditRole :execrows
 DELETE FROM audit_role
 WHERE project_id = $1 AND member_id = $2
@@ -56,6 +217,58 @@ DELETE FROM audit_workpaper WHERE issue_id = $1
 func (q *Queries) DeleteWorkpaperRecord(ctx context.Context, issueID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkpaperRecord, issueID)
 	return err
+}
+
+const getAuditDocument = `-- name: GetAuditDocument :one
+SELECT id, workspace_id, attachment_id, category_path, title, uploader_type, uploader_id, created_at, updated_at FROM audit_document WHERE id = $1 AND workspace_id = $2
+`
+
+type GetAuditDocumentParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) GetAuditDocument(ctx context.Context, arg GetAuditDocumentParams) (AuditDocument, error) {
+	row := q.db.QueryRow(ctx, getAuditDocument, arg.ID, arg.WorkspaceID)
+	var i AuditDocument
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.AttachmentID,
+		&i.CategoryPath,
+		&i.Title,
+		&i.UploaderType,
+		&i.UploaderID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAuditDocumentCategory = `-- name: GetAuditDocumentCategory :one
+SELECT id, workspace_id, path, name, is_standard, position, created_at, updated_at FROM audit_document_category
+WHERE workspace_id = $1 AND path = $2
+`
+
+type GetAuditDocumentCategoryParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Path        string      `json:"path"`
+}
+
+func (q *Queries) GetAuditDocumentCategory(ctx context.Context, arg GetAuditDocumentCategoryParams) (AuditDocumentCategory, error) {
+	row := q.db.QueryRow(ctx, getAuditDocumentCategory, arg.WorkspaceID, arg.Path)
+	var i AuditDocumentCategory
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Path,
+		&i.Name,
+		&i.IsStandard,
+		&i.Position,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getAuditRoleLevel = `-- name: GetAuditRoleLevel :one
@@ -104,6 +317,118 @@ func (q *Queries) IsWorkspaceAuditMode(ctx context.Context, id pgtype.UUID) (boo
 	var enabled bool
 	err := row.Scan(&enabled)
 	return enabled, err
+}
+
+const listAuditDocumentCategories = `-- name: ListAuditDocumentCategories :many
+SELECT id, workspace_id, path, name, is_standard, position, created_at, updated_at FROM audit_document_category
+WHERE workspace_id = $1
+ORDER BY path ASC
+`
+
+// The whole tree, in filing order. Fixed-width segments are what make a lexical
+// sort the order an auditor expects.
+func (q *Queries) ListAuditDocumentCategories(ctx context.Context, workspaceID pgtype.UUID) ([]AuditDocumentCategory, error) {
+	rows, err := q.db.Query(ctx, listAuditDocumentCategories, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditDocumentCategory{}
+	for rows.Next() {
+		var i AuditDocumentCategory
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Path,
+			&i.Name,
+			&i.IsStandard,
+			&i.Position,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuditDocumentsUnderCategory = `-- name: ListAuditDocumentsUnderCategory :many
+SELECT d.id, d.workspace_id, d.attachment_id, d.category_path, d.title, d.uploader_type, d.uploader_id, d.created_at, d.updated_at, a.filename, a.url, a.content_type, a.size_bytes
+FROM audit_document d
+JOIN attachment a ON a.id = d.attachment_id
+WHERE d.workspace_id = $1
+  AND (d.category_path = $2::text
+       OR d.category_path LIKE $3::text)
+ORDER BY d.category_path ASC, d.created_at DESC
+LIMIT $4
+`
+
+type ListAuditDocumentsUnderCategoryParams struct {
+	WorkspaceID       pgtype.UUID `json:"workspace_id"`
+	Path              string      `json:"path"`
+	DescendantPattern string      `json:"descendant_pattern"`
+	Lim               int32       `json:"lim"`
+}
+
+type ListAuditDocumentsUnderCategoryRow struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	AttachmentID pgtype.UUID        `json:"attachment_id"`
+	CategoryPath string             `json:"category_path"`
+	Title        string             `json:"title"`
+	UploaderType string             `json:"uploader_type"`
+	UploaderID   pgtype.UUID        `json:"uploader_id"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	Filename     string             `json:"filename"`
+	Url          string             `json:"url"`
+	ContentType  string             `json:"content_type"`
+	SizeBytes    int64              `json:"size_bytes"`
+}
+
+// Asking for a parent returns everything beneath it at any depth: an auditor
+// looking for a voucher should not have to walk the tree to find it.
+func (q *Queries) ListAuditDocumentsUnderCategory(ctx context.Context, arg ListAuditDocumentsUnderCategoryParams) ([]ListAuditDocumentsUnderCategoryRow, error) {
+	rows, err := q.db.Query(ctx, listAuditDocumentsUnderCategory,
+		arg.WorkspaceID,
+		arg.Path,
+		arg.DescendantPattern,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAuditDocumentsUnderCategoryRow{}
+	for rows.Next() {
+		var i ListAuditDocumentsUnderCategoryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AttachmentID,
+			&i.CategoryPath,
+			&i.Title,
+			&i.UploaderType,
+			&i.UploaderID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Filename,
+			&i.Url,
+			&i.ContentType,
+			&i.SizeBytes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAuditRolesForProject = `-- name: ListAuditRolesForProject :many
@@ -497,6 +822,44 @@ func (q *Queries) MarkHandoverReminded(ctx context.Context, arg MarkHandoverRemi
 	return err
 }
 
+const moveAuditDocument = `-- name: MoveAuditDocument :one
+UPDATE audit_document
+SET category_path = $1::text,
+    title = COALESCE($2, title),
+    updated_at = now()
+WHERE id = $3::uuid AND workspace_id = $4::uuid
+RETURNING id, workspace_id, attachment_id, category_path, title, uploader_type, uploader_id, created_at, updated_at
+`
+
+type MoveAuditDocumentParams struct {
+	CategoryPath string      `json:"category_path"`
+	Title        pgtype.Text `json:"title"`
+	ID           pgtype.UUID `json:"id"`
+	WorkspaceID  pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) MoveAuditDocument(ctx context.Context, arg MoveAuditDocumentParams) (AuditDocument, error) {
+	row := q.db.QueryRow(ctx, moveAuditDocument,
+		arg.CategoryPath,
+		arg.Title,
+		arg.ID,
+		arg.WorkspaceID,
+	)
+	var i AuditDocument
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.AttachmentID,
+		&i.CategoryPath,
+		&i.Title,
+		&i.UploaderType,
+		&i.UploaderID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const recordWorkpaperPreparer = `-- name: RecordWorkpaperPreparer :exec
 INSERT INTO audit_workpaper (issue_id, workspace_id, preparer_id)
 VALUES (
@@ -521,6 +884,39 @@ type RecordWorkpaperPreparerParams struct {
 // record. A resubmission after rejection replaces the previous value.
 func (q *Queries) RecordWorkpaperPreparer(ctx context.Context, arg RecordWorkpaperPreparerParams) error {
 	_, err := q.db.Exec(ctx, recordWorkpaperPreparer, arg.IssueID, arg.WorkspaceID, arg.PreparerID)
+	return err
+}
+
+const seedAuditDocumentCategory = `-- name: SeedAuditDocumentCategory :exec
+INSERT INTO audit_document_category (workspace_id, path, name, is_standard, position)
+VALUES (
+    $1::uuid,
+    $2::text,
+    $3::text,
+    TRUE,
+    $4::float8
+)
+ON CONFLICT (workspace_id, path) DO NOTHING
+`
+
+type SeedAuditDocumentCategoryParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Path        string      `json:"path"`
+	Name        string      `json:"name"`
+	Position    float64     `json:"position"`
+}
+
+// Idempotent, so the same seeding serves audit-mode enable and an explicit
+// action on an auditee that predates the scheme. Only the seeded NAME is
+// refreshed; a client that renamed a standard drawer keeps its own name because
+// position and any later edits are left alone.
+func (q *Queries) SeedAuditDocumentCategory(ctx context.Context, arg SeedAuditDocumentCategoryParams) error {
+	_, err := q.db.Exec(ctx, seedAuditDocumentCategory,
+		arg.WorkspaceID,
+		arg.Path,
+		arg.Name,
+		arg.Position,
+	)
 	return err
 }
 

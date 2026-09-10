@@ -554,6 +554,14 @@ deleted_audit_workpapers AS (
 ),
 deleted_audit_roles AS (
     DELETE FROM audit_role WHERE audit_role.workspace_id = $1
+),
+-- The document library. The rows go; the attachments they point at are swept
+-- by the attachment teardown, which owns the bytes.
+deleted_audit_documents AS (
+    DELETE FROM audit_document WHERE audit_document.workspace_id = $1
+),
+deleted_audit_document_categories AS (
+    DELETE FROM audit_document_category WHERE audit_document_category.workspace_id = $1
 )
 DELETE FROM quick_action WHERE quick_action.workspace_id = $1;
 

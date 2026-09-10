@@ -1,0 +1,1 @@
+ALTER TABLE audit_document_category DROP CONSTRAINT IF EXISTS audit_document_category_pkey;

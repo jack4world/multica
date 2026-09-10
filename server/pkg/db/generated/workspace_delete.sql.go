@@ -249,6 +249,12 @@ deleted_audit_workpapers AS (
 ),
 deleted_audit_roles AS (
     DELETE FROM audit_role WHERE audit_role.workspace_id = $1
+),
+deleted_audit_documents AS (
+    DELETE FROM audit_document WHERE audit_document.workspace_id = $1
+),
+deleted_audit_document_categories AS (
+    DELETE FROM audit_document_category WHERE audit_document_category.workspace_id = $1
 )
 DELETE FROM quick_action WHERE quick_action.workspace_id = $1
 `
@@ -256,6 +262,8 @@ DELETE FROM quick_action WHERE quick_action.workspace_id = $1
 // Audit vertical. No foreign keys anywhere in this schema, so teardown is
 // explicit: audit_workpaper extends an issue and audit_role scopes reviewer
 // ranks to an engagement, and both die with the workspace that held them.
+// The document library. The rows go; the attachments they point at are swept
+// by the attachment teardown, which owns the bytes.
 func (q *Queries) DeleteWorkspaceIssueRoots(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceIssueRoots, workspaceID)
 	return err

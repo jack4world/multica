@@ -302,6 +302,14 @@ func (h *Handler) seedAuditMode(r *http.Request, workspaceID string, wsUUID pgty
 		}
 	}
 
+	// The filing scheme, so nobody designs a taxonomy under time pressure and
+	// every client's file looks the same to anyone who moves between them.
+	// Idempotent, so an auditee that predates it can be given one by calling
+	// this path again rather than by a migration that would have to guess.
+	if err := h.seedAuditDocumentCategories(ctx, qtx, wsUUID); err != nil {
+		return pgtype.Timestamptz{}, false, http.StatusInternalServerError, err.Error()
+	}
+
 	enabledAt, err := qtx.EnableWorkspaceAuditMode(ctx, wsUUID)
 	if err != nil {
 		return pgtype.Timestamptz{}, false, http.StatusInternalServerError, err.Error()

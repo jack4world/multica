@@ -303,6 +303,10 @@ var concurrentIndexCleanups = map[string]string{
 	"460_audit_role_project_member_uidx":                        "audit_role_project_member_uidx",
 	"462_audit_workpaper_pkey_index":                            "audit_workpaper_pkey_uidx",
 	"464_activity_log_workspace_day_index":                      "idx_activity_log_workspace_created_at",
+	"468_audit_document_category_pkey_index":  "audit_document_category_pkey_uidx",
+	"470_audit_document_category_path_uidx":   "audit_document_category_path_uidx",
+	"472_audit_document_pkey_index":           "audit_document_pkey_uidx",
+	"474_audit_document_category_index":       "idx_audit_document_workspace_category",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
