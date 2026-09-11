@@ -104,8 +104,11 @@ vi.mock("@multica/ui/components/ui/dropdown-menu", () => ({
 vi.mock("../i18n", () => ({
   useT: () => ({
     t: (accessor: (dict: unknown) => string, vars?: Record<string, string | number>) => {
+      // Interpolate the way i18next does — `{{name}}`, double braces — so a
+      // string written with single braces fails here the way it fails in
+      // the product (it rendered "{count} 份底稿等你" once).
       let text = accessor(zh);
-      for (const [k, v] of Object.entries(vars ?? {})) text = text.replace(`{${k}}`, String(v));
+      for (const [k, v] of Object.entries(vars ?? {})) text = text.replaceAll(`{{${k}}}`, String(v));
       return text;
     },
   }),

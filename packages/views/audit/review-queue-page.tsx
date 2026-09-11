@@ -4,6 +4,7 @@ import { AppLink } from "../navigation/app-link";
 import { useT } from "../i18n";
 import { paths, useWorkspaceSlug } from "@multica/core/paths";
 import { AskAgentMenu } from "./ask-agent-menu";
+import { reviewLevelLabel } from "./level-label";
 
 /**
  * The workpapers waiting on this reviewer.
@@ -61,7 +62,7 @@ export function ReviewQueuePage() {
                   {item.issue.title}
                 </AppLink>
                 <span className="text-caption text-muted-foreground">
-                  {levelLabel(t, item.level)}
+                  {reviewLevelLabel(t, item.level)}
                 </span>
               </div>
               <time
@@ -76,14 +77,4 @@ export function ReviewQueuePage() {
       )}
     </div>
   );
-}
-
-/** The rank held on THIS engagement, named the way an auditor says it. */
-function levelLabel(t: ReturnType<typeof useT<"issues">>["t"], level: string): string {
-  switch (level) {
-    case "reviewer_l1": return t(($) => $.audit.level.reviewer_l1);
-    case "reviewer_l2": return t(($) => $.audit.level.reviewer_l2);
-    case "reviewer_l3": return t(($) => $.audit.level.reviewer_l3);
-    default: return t(($) => $.audit.level.fallback);
-  }
 }

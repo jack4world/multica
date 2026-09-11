@@ -137,7 +137,7 @@ import { PAGE_GUTTER } from "../../layout/page-header";
 import { ProgressRing } from "./progress-ring";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 import { useT } from "../../i18n";
-import { ReviewActions } from "../../audit";
+import { ReviewActions, reviewLevelLabel } from "../../audit";
 import { useIssueDetailScrollRestore } from "../hooks/use-issue-detail-scroll-restore";
 import { useInPageFind } from "../hooks/use-in-page-find";
 import { useStickyComposer } from "../hooks/use-sticky-composer";
@@ -310,8 +310,9 @@ function formatActivity(
     case "workpaper_submitted":
       return t(($) => $.activity.workpaper_submitted);
     case "workpaper_review_passed":
+      // The trail stores the role code; the reader gets the rank's name.
       return t(($) => $.activity.workpaper_review_passed, {
-        level: details.level ?? "?",
+        level: reviewLevelLabel(t, details.level),
       });
     case "workpaper_review_rejected": {
       const rejected = t(($) => $.activity.workpaper_review_rejected);
