@@ -3,6 +3,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { AppLink } from "../navigation/app-link";
 import { useT } from "../i18n";
 import { paths, useWorkspaceSlug } from "@multica/core/paths";
+import { AskAgentMenu } from "./ask-agent-menu";
 
 /**
  * The workpapers waiting on this reviewer.
@@ -29,9 +30,17 @@ export function ReviewQueuePage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-title font-semibold">{t(($) => $.audit.queue_title)}</h1>
-        <p className="text-body text-muted-foreground">{t(($) => $.audit.queue_subtitle)}</p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-title font-semibold">{t(($) => $.audit.queue_title)}</h1>
+          <p className="text-body text-muted-foreground">{t(($) => $.audit.queue_subtitle)}</p>
+        </div>
+        <AskAgentMenu
+          prompts={[
+            { id: "what_to_check", question: t(($) => $.audit.ask.queue.what_to_check) },
+            { id: "return_reason", question: t(($) => $.audit.ask.queue.return_reason) },
+          ]}
+        />
       </header>
 
       {isPending ? (

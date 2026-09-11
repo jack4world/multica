@@ -1,6 +1,7 @@
 {
   "nav": {
     "inbox": "收件箱",
+    "audit_home": "审计台",
     "chat": "聊天",
     "my_issues": "我的任务",
     "review_queue": "待我复核",
@@ -63,6 +64,7 @@
     "discord_card": {
       "title": "加入 Discord",
       "dismiss": "关闭"
-    }
+    },
+    "more_group": "更多"
   }
 }

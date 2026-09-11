@@ -1083,6 +1083,78 @@
       "withdrawn_empty": "Nothing has been withdrawn.",
       "withdrawn_at": "Withdrawn",
       "withdrawn_reason_label": "Reason"
+    },
+    "home": {
+      "greeting": "{name}, here is where things stand",
+      "greeting_anonymous": "Here is where things stand",
+      "loading": "Checking what is waiting on you…",
+      "mine_title": "Waiting on you",
+      "review": {
+        "title": "To review",
+        "count": "{count} workpapers waiting",
+        "empty": "No workpapers waiting on you",
+        "cta": "Review"
+      },
+      "remediation": {
+        "title": "My remediation items",
+        "count": "{count} in progress",
+        "overdue": "{count} of them overdue",
+        "empty": "No remediation items assigned to you",
+        "cta": "Open"
+      },
+      "unit_title": "This organization",
+      "overdue": {
+        "title": "Overdue remediation",
+        "count": "{count} overdue",
+        "empty": "Nothing is overdue",
+        "cta": "Open ledger"
+      },
+      "engagements": {
+        "title": "Engagements in progress",
+        "empty": "No engagement in progress yet",
+        "cta": "Open",
+        "report": "Report",
+        "archived_hidden": "Archived engagements are not listed here."
+      },
+      "documents": {
+        "title": "Document library",
+        "hint": "The organization's policies, vouchers and prior-year material, filed by number.",
+        "cta": "Open library"
+      },
+      "phase": {
+        "preparation": "Preparation",
+        "fieldwork": "Fieldwork",
+        "reporting": "Reporting",
+        "follow_up": "Follow-up",
+        "unset": "Phase not set"
+      },
+      "ask_title": "Not sure where to start?",
+      "ask_hint": "The round button in the bottom-right corner opens the AI on any page.",
+      "starters": {
+        "what_now": "I am a new auditor here. In plain words, what should I do right now?",
+        "how_review": "How do I review a workpaper? What happens when I pass it, and when I return it?",
+        "how_remediation": "How does a remediation item go from raised to closed, and what is my step?"
+      }
+    },
+    "ask": {
+      "button": "Ask AI",
+      "free_form": "Ask something else…",
+      "queue": {
+        "what_to_check": "What should I focus on when reviewing a workpaper?",
+        "return_reason": "How do I write a return reason that helps the preparer?"
+      },
+      "ledger": {
+        "chase": "Draft a follow-up message to a department whose remediation is overdue.",
+        "verify": "What should I check when verifying remediation, and how do I write it up so it holds?"
+      },
+      "library": {
+        "filing": "How is the document library numbered? Where does my file go?",
+        "withdraw": "What is the difference between withdrawing a document and deleting it?"
+      },
+      "report": {
+        "draft": "Draft the findings section of the report from this engagement's findings.",
+        "tone": "What wording does an audit report require? Make this paragraph more formal."
+      }
     }
   }
 }

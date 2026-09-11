@@ -93,6 +93,7 @@ const PAGE_KEYWORDS: Record<WorkspacePageKey, string[]> = {
   inbox: ["inbox", "notifications", "收件箱", "通知"],
   chat: ["chat", "messages", "conversation", "聊天", "消息", "对话"],
   myIssues: ["my", "issues", "assigned", "mine", "我的", "任务"],
+  audit: ["audit", "home", "start", "today", "审计台", "审计", "首页", "今天", "开始"],
   reviewQueue: ["review", "queue", "workpaper", "audit", "复核", "待我复核", "底稿", "审计"],
   remediation: ["remediation", "ledger", "overdue", "follow-up", "整改", "整改台账", "台账", "逾期", "后续审计"],
   auditDocuments: ["documents", "library", "evidence", "vouchers", "审计资料", "资料", "凭证", "档案", "归档号"],

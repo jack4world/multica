@@ -36,6 +36,9 @@ function report(over: Partial<AuditReport> = {}): AuditReport {
   };
 }
 
+// The "问 AI" menu is the home page's to test (audit-home-page.test.tsx); here
+// it would only drag the chat store into a test about the page's own rules.
+vi.mock("./ask-agent-menu", () => ({ AskAgentMenu: () => null }));
 vi.mock("@multica/core/audit", () => ({
   useAuditReports: () => ({ data: reports(), isPending: false }),
   useCreateAuditReport: () => ({ mutate: create, isPending: false }),

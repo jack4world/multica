@@ -1,6 +1,7 @@
 {
   "nav": {
     "inbox": "インボックス",
+    "audit_home": "監査デスク",
     "chat": "チャット",
     "my_issues": "マイタスク",
     "review_queue": "Review queue",
@@ -63,6 +64,7 @@
     "discord_card": {
       "title": "Discord に参加",
       "dismiss": "閉じる"
-    }
+    },
+    "more_group": "その他"
   }
 }

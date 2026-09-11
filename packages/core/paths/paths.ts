@@ -64,6 +64,10 @@ function workspaceScoped(slug: string) {
     chatSession: (sessionId: string) =>
       `${ws}/chat?session=${encode(sessionId)}`,
     myIssues: () => `${ws}/my-issues`,
+    // The auditor's front door: what is waiting on me, what is late, where
+    // to start. Listed before the queue because it is the page the queue is
+    // reached from.
+    audit: () => `${ws}/audit`,
     reviewQueue: () => `${ws}/review-queue`,
     remediation: () => `${ws}/remediation`,
     auditDocuments: () => `${ws}/audit-documents`,

@@ -15,6 +15,7 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { toast } from "sonner";
 import { useT } from "../i18n";
+import { AskAgentMenu } from "./ask-agent-menu";
 import { refusalCode, refusalFallback } from "./refusal-copy";
 
 /**
@@ -51,22 +52,30 @@ export function AuditReportPage({ projectId }: { projectId: string }) {
           <h1 className="text-title font-semibold">{t(($) => $.audit.report.title)}</h1>
           <p className="text-body text-muted-foreground">{t(($) => $.audit.report.subtitle)}</p>
         </div>
-        {!report && (
-          <Button
-            size="sm"
-            disabled={createReport.isPending}
-            onClick={() =>
-              createReport.mutate(
-                { projectId },
-                {
-                  onError: (err: unknown) => toast.error(reportRefusal(t, err)),
-                },
-              )
-            }
-          >
-            {t(($) => $.audit.report.start)}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <AskAgentMenu
+            prompts={[
+              { id: "draft", question: t(($) => $.audit.ask.report.draft) },
+              { id: "tone", question: t(($) => $.audit.ask.report.tone) },
+            ]}
+          />
+          {!report && (
+            <Button
+              size="sm"
+              disabled={createReport.isPending}
+              onClick={() =>
+                createReport.mutate(
+                  { projectId },
+                  {
+                    onError: (err: unknown) => toast.error(reportRefusal(t, err)),
+                  },
+                )
+              }
+            >
+              {t(($) => $.audit.report.start)}
+            </Button>
+          )}
+        </div>
       </header>
 
       {!report ? (

@@ -17,6 +17,7 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { toast } from "sonner";
 import { useT } from "../i18n";
+import { AskAgentMenu } from "./ask-agent-menu";
 import { refusalFallback } from "./refusal-copy";
 
 /**
@@ -52,9 +53,17 @@ export function DocumentLibraryPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-title font-semibold">{t(($) => $.audit.library.title)}</h1>
-        <p className="text-body text-muted-foreground">{t(($) => $.audit.library.subtitle)}</p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-title font-semibold">{t(($) => $.audit.library.title)}</h1>
+          <p className="text-body text-muted-foreground">{t(($) => $.audit.library.subtitle)}</p>
+        </div>
+        <AskAgentMenu
+          prompts={[
+            { id: "filing", question: t(($) => $.audit.ask.library.filing) },
+            { id: "withdraw", question: t(($) => $.audit.ask.library.withdraw) },
+          ]}
+        />
       </header>
 
       {isPending ? (

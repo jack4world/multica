@@ -21,6 +21,7 @@
 /** Every icon name a nav page or a tab type-icon can resolve to. */
 export type RouteIconName =
   | "Inbox"
+  | "Compass"
   | "Stamp"
   | "ClipboardCheck"
   | "FolderArchive"
@@ -48,6 +49,7 @@ export type RouteIconName =
 /** i18n label key (under the `layout.nav` namespace) for a page. */
 export type NavLabelKey =
   | "inbox"
+  | "audit_home"
   | "review_queue"
   | "remediation"
   | "audit_documents"
@@ -66,6 +68,7 @@ export type NavLabelKey =
 /** Stable identifier for each workspace navigation page. */
 export type WorkspacePageKey =
   | "inbox"
+  | "audit"
   | "reviewQueue"
   | "remediation"
   | "auditDocuments"
@@ -96,6 +99,10 @@ export interface WorkspacePage {
  */
 export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
   inbox: { segment: "inbox", icon: "Inbox", navKey: "inbox" },
+  // Shown only in an auditee workspace. The one page an auditor needs to
+  // know exists: it says what is waiting on them and where each thing is
+  // done, so the rest of the nav is something to discover, not to learn.
+  audit: { segment: "audit", icon: "Compass", navKey: "audit_home" },
   chat: { segment: "chat", icon: "MessageSquare", navKey: "chat" },
   myIssues: { segment: "my-issues", icon: "CircleUser", navKey: "my_issues" },
   // Shown only in an auditee workspace. "Waiting on me" is a different kind of
@@ -131,6 +138,7 @@ export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
  * workspace sends the reader to a page that renders nothing.
  */
 export const AUDIT_ONLY_PAGE_KEYS: readonly WorkspacePageKey[] = [
+  "audit",
   "reviewQueue",
   "remediation",
   "auditDocuments",

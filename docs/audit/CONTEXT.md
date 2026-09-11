@@ -35,6 +35,10 @@ _Avoid_: 附件, 凭证 (a voucher is one category of document, not a synonym)
 Taking a piece of 审计资料 out of the file, with a reason, leaving a record that it was there. Not a deletion: material that vanishes without trace is indistinguishable from material that was never filed, and an append-only trail cannot protect what was never written to it.
 _Avoid_: 删除, 移除, delete
 
+**审计台 (Audit desk)**:
+The page an auditee workspace opens on. It says what is waiting on the reader — workpapers to review, remediation they are responsible for, what the unit has let go overdue — and where each is acted on. It holds no state of its own: every number on it is read from the queue, the ledger or the engagement list it points at.
+_Avoid_: 首页, 仪表盘, 工作台, dashboard, home
+
 ### People
 
 **编制人 (Preparer)**:

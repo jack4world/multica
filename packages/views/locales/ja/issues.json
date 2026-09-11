@@ -1053,6 +1053,78 @@
       "withdrawn_empty": "Nothing has been withdrawn.",
       "withdrawn_at": "Withdrawn",
       "withdrawn_reason_label": "Reason"
+    },
+    "home": {
+      "greeting": "{name}さん、今日の状況です",
+      "greeting_anonymous": "今日の状況です",
+      "loading": "待っている作業を確認しています…",
+      "mine_title": "あなたの番です",
+      "review": {
+        "title": "レビュー待ち",
+        "count": "{count} 件の調書が待っています",
+        "empty": "レビュー待ちの調書はありません",
+        "cta": "レビューする"
+      },
+      "remediation": {
+        "title": "担当の是正事項",
+        "count": "{count} 件進行中",
+        "overdue": "うち {count} 件が期限超過",
+        "empty": "担当の是正事項はありません",
+        "cta": "対応する"
+      },
+      "unit_title": "この組織",
+      "overdue": {
+        "title": "期限超過の是正",
+        "count": "{count} 件が期限超過",
+        "empty": "期限超過はありません",
+        "cta": "台帳を見る"
+      },
+      "engagements": {
+        "title": "進行中の監査案件",
+        "empty": "進行中の監査案件はまだありません",
+        "cta": "開く",
+        "report": "報告書",
+        "archived_hidden": "アーカイブ済みの案件はここには表示されません。"
+      },
+      "documents": {
+        "title": "監査資料",
+        "hint": "組織の規程、証憑、過年度資料を番号順に保管します。",
+        "cta": "資料庫へ"
+      },
+      "phase": {
+        "preparation": "準備",
+        "fieldwork": "実査",
+        "reporting": "報告",
+        "follow_up": "フォローアップ",
+        "unset": "段階未設定"
+      },
+      "ask_title": "どこから始めればいいか分からない？",
+      "ask_hint": "右下の丸いボタンでどのページからでも AI を呼び出せます。",
+      "starters": {
+        "what_now": "新任の監査人です。今何をすべきか、平易な言葉で教えてください。",
+        "how_review": "調書のレビューはどう操作しますか？承認と差し戻しで何が起こりますか？",
+        "how_remediation": "是正事項は提起から完了までどう進みますか？私のステップは何ですか？"
+      }
+    },
+    "ask": {
+      "button": "AI に聞く",
+      "free_form": "他のことを聞く…",
+      "queue": {
+        "what_to_check": "調書をレビューするとき、何に注目すべきですか？",
+        "return_reason": "作成者に役立つ差し戻し理由はどう書けばいいですか？"
+      },
+      "ledger": {
+        "chase": "期限超過の是正を担当する部門への催促文を作成してください。",
+        "verify": "是正の検証で何を確認し、どう記録すれば根拠になりますか？"
+      },
+      "library": {
+        "filing": "監査資料の番号体系はどうなっていますか？この資料はどこに置くべきですか？",
+        "withdraw": "資料の取り下げと削除の違いは何ですか？"
+      },
+      "report": {
+        "draft": "この監査の発見事項から報告書の指摘事項の部分を下書きしてください。",
+        "tone": "監査報告書の文言に求められることは？この段落をより正式な表現にしてください。"
+      }
     }
   }
 }
