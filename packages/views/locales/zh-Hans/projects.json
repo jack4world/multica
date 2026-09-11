@@ -82,7 +82,8 @@
     "toast_move_issue_failed": "移动任务失败",
     "section_audit_report": "审计报告",
     "audit_report_link": "打开审计报告",
-    "audit_report_hint": "本审计项目对外出具的文件。"
+    "audit_report_hint": "本审计项目对外出具的文件。",
+    "empty_issues_new_button_workpaper": "新建底稿"
   },
   "resources": {
     "section_header": "资源",
