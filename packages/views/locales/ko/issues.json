@@ -1053,6 +1053,78 @@
       "withdrawn_empty": "Nothing has been withdrawn.",
       "withdrawn_at": "Withdrawn",
       "withdrawn_reason_label": "Reason"
+    },
+    "home": {
+      "greeting": "{name}님, 오늘 상황입니다",
+      "greeting_anonymous": "오늘 상황입니다",
+      "loading": "대기 중인 작업을 확인하는 중…",
+      "mine_title": "내 차례",
+      "review": {
+        "title": "검토 대기",
+        "count": "조서 {count}건 대기 중",
+        "empty": "검토 대기 중인 조서가 없습니다",
+        "cta": "검토하기"
+      },
+      "remediation": {
+        "title": "내 시정 항목",
+        "count": "{count}건 진행 중",
+        "overdue": "그중 {count}건 기한 초과",
+        "empty": "담당 시정 항목이 없습니다",
+        "cta": "처리하기"
+      },
+      "unit_title": "이 조직",
+      "overdue": {
+        "title": "기한 초과 시정",
+        "count": "{count}건 기한 초과",
+        "empty": "기한 초과 항목이 없습니다",
+        "cta": "대장 보기"
+      },
+      "engagements": {
+        "title": "진행 중인 감사 프로젝트",
+        "empty": "진행 중인 감사 프로젝트가 없습니다",
+        "cta": "열기",
+        "report": "보고서",
+        "archived_hidden": "보관된 프로젝트는 여기에 표시되지 않습니다."
+      },
+      "documents": {
+        "title": "감사 자료",
+        "hint": "조직의 규정, 증빙, 전년도 자료를 번호별로 보관합니다.",
+        "cta": "자료실로"
+      },
+      "phase": {
+        "preparation": "준비",
+        "fieldwork": "현장",
+        "reporting": "보고",
+        "follow_up": "후속 조치",
+        "unset": "단계 미정"
+      },
+      "ask_title": "어디서 시작할지 모르겠나요?",
+      "ask_hint": "오른쪽 아래 둥근 버튼으로 어느 페이지에서든 AI를 부를 수 있습니다.",
+      "starters": {
+        "what_now": "새로 온 감사인입니다. 지금 무엇을 해야 하는지 쉬운 말로 알려 주세요.",
+        "how_review": "조서 검토는 어떻게 하나요? 승인과 반려 시 각각 무슨 일이 일어나나요?",
+        "how_remediation": "시정 항목은 제기부터 종결까지 어떻게 진행되고, 제 단계는 무엇인가요?"
+      }
+    },
+    "ask": {
+      "button": "AI에게 묻기",
+      "free_form": "다른 것을 묻기…",
+      "queue": {
+        "what_to_check": "조서를 검토할 때 무엇을 중점적으로 봐야 하나요?",
+        "return_reason": "작성자에게 도움이 되는 반려 사유는 어떻게 쓰나요?"
+      },
+      "ledger": {
+        "chase": "기한을 넘긴 시정 담당 부서에 보낼 독촉 메시지를 작성해 주세요.",
+        "verify": "시정 검증 시 무엇을 확인하고, 어떻게 기록해야 근거가 되나요?"
+      },
+      "library": {
+        "filing": "감사 자료 번호 체계는 어떻게 되나요? 이 자료는 어디에 두어야 하나요?",
+        "withdraw": "자료 철회와 삭제는 무엇이 다른가요?"
+      },
+      "report": {
+        "draft": "이번 감사의 발견 사항으로 보고서의 지적 사항 부분을 초안으로 작성해 주세요.",
+        "tone": "감사 보고서 문구에는 어떤 요건이 있나요? 이 단락을 더 격식 있게 고쳐 주세요."
+      }
     }
   }
 }

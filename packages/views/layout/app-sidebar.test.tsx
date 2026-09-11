@@ -4,8 +4,9 @@ import { ApiError } from "@multica/core/api";
 import { renderWithI18n } from "../test/i18n";
 import { AppSidebar } from "./app-sidebar";
 
-const { appForeground, chatSessions, chatStore, detail, deletePin, inboxItems, navigation, pins, sidebarState, summary, workspaces } = vi.hoisted(() => ({
+const { appForeground, auditMode, chatSessions, chatStore, detail, deletePin, inboxItems, navigation, pins, sidebarState, summary, workspaces } = vi.hoisted(() => ({
   appForeground: { current: true },
+  auditMode: { current: false },
   sidebarState: { setOpenMobile: vi.fn() },
   chatSessions: { current: [] as { id?: string; unread_count?: number }[] },
   chatStore: { current: { activeSessionId: null as string | null, isOpen: false } },
@@ -127,6 +128,10 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
     inbox: () => "/acme/inbox",
     chat: () => "/acme/chat",
     myIssues: () => "/acme/my-issues",
+    audit: () => "/acme/audit",
+    reviewQueue: () => "/acme/review-queue",
+    remediation: () => "/acme/remediation",
+    auditDocuments: () => "/acme/audit-documents",
     issues: () => "/acme/issues",
     projects: () => "/acme/projects",
     autopilots: () => "/acme/autopilots",
@@ -139,6 +144,11 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
     issueDetail: (id: string) => `/acme/issues/${id}`,
     projectDetail: (id: string) => `/acme/projects/${id}`,
   }),
+}));
+// Whether this is an auditee workspace. Off by default, which is what an
+// unmocked query would have resolved to.
+vi.mock("@multica/core/audit", () => ({
+  useAuditMode: () => ({ data: { enabled: auditMode.current, enabled_at: null } }),
 }));
 vi.mock("@multica/core/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@multica/core/api")>();
@@ -482,5 +492,45 @@ describe("personal nav — Chat", () => {
     appForeground.current = false;
     const { container } = render(<AppSidebar />);
     expect(chatBadge(container)).toHaveAttribute("aria-label", "5");
+  });
+});
+
+describe("auditee workspace nav", () => {
+  beforeEach(() => {
+    navigation.current = { pathname: "/acme/issues" };
+  });
+
+  const navHrefs = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll("button[data-href]")).map((el) => el.getAttribute("data-href"));
+
+  it("shows the software-team nav in an ordinary workspace and no audit pages", () => {
+    auditMode.current = false;
+    const { container } = renderWithI18n(<AppSidebar />);
+    // Group labels render as bare text under the mocked sidebar primitives,
+    // so they are read off the container rather than queried as elements.
+    expect(container.textContent).toContain("AI Team");
+    expect(container.textContent).not.toContain("More");
+    const hrefs = navHrefs(container);
+    expect(hrefs).toContain("/acme/agents");
+    expect(hrefs).not.toContain("/acme/audit");
+  });
+
+  // A first-time auditor reads the nav top to bottom. The audit desk has to be
+  // the first thing they see, and the software-team pages must be behind a
+  // closed group rather than gone: still reachable, no longer in the way.
+  it("leads with the audit desk and folds the software-team pages into a closed group", () => {
+    auditMode.current = true;
+    try {
+      const { container } = renderWithI18n(<AppSidebar />);
+      expect(container.textContent).toContain("More");
+      expect(container.textContent).not.toContain("AI Team");
+      const hrefs = navHrefs(container);
+      expect(hrefs[0]).toBe("/acme/audit");
+      expect(hrefs.indexOf("/acme/review-queue")).toBeLessThan(hrefs.indexOf("/acme/inbox"));
+      expect(hrefs).toContain("/acme/agents");
+      expect(hrefs).toContain("/acme/autopilots");
+    } finally {
+      auditMode.current = false;
+    }
   });
 });

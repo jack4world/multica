@@ -75,6 +75,7 @@
         "squads",
         "inbox",
         "my-issues",
+        "audit",
         "review-queue",
         "remediation",
         "audit-documents",

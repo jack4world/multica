@@ -114,6 +114,7 @@ const PINNED_PREVIEW_LIMIT = 5;
 // Only parameterless paths are valid nav destinations.
 type NavKey =
   | "inbox"
+  | "audit"
   | "reviewQueue"
   | "remediation"
   | "auditDocuments"
@@ -133,6 +134,7 @@ type NavKey =
 // icons derived from the destination path via routeIconForPath.
 type NavLabelKey =
   | "inbox"
+  | "audit_home"
   | "review_queue"
   | "remediation"
   | "audit_documents"
@@ -157,16 +159,23 @@ const personalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "chat", labelKey: "chat" },
 ];
 
-// Shown only in an auditee workspace, gated on the same AUDIT_ONLY_PAGE_KEYS
-// the command palette uses so the two surfaces cannot disagree about which
-// pages are audit pages. The review queue sits with the personal items because
-// it answers "what is waiting on ME" — the same question the inbox answers —
-// and because a reviewer has no other way to learn a workpaper is waiting: it
-// stays owned by its preparer while it is being reviewed.
-const auditNav: { key: NavKey; labelKey: NavLabelKey }[] = [
+// An auditee workspace shows a different nav, gated on the same
+// AUDIT_ONLY_PAGE_KEYS the command palette uses so the two surfaces cannot
+// disagree about which pages are audit pages.
+//
+// The audit pages come first and the 审计台 leads them: it is the page that
+// says what is waiting on the reader, so it is the one they must find. The
+// review queue sits with the personal items because it answers "what is
+// waiting on ME" — the same question the inbox answers — and because a
+// reviewer has no other way to learn a workpaper is waiting: it stays owned by
+// its preparer while it is being reviewed.
+const auditPersonalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
+  { key: "audit", labelKey: "audit_home" },
   { key: "reviewQueue", labelKey: "review_queue" },
   { key: "remediation", labelKey: "remediation" },
   { key: "auditDocuments", labelKey: "audit_documents" },
+  { key: "inbox", labelKey: "inbox" },
+  { key: "chat", labelKey: "chat" },
 ];
 
 const workNav: { key: NavKey; labelKey: NavLabelKey }[] = [
@@ -175,11 +184,27 @@ const workNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "autopilots", labelKey: "autopilots" },
 ];
 
+// In an auditee workspace the work group is what an auditor recognises —
+// their engagements and their own workpapers — and everything built for a
+// software team (autopilots, agents, squads, skills, runtimes) folds into a
+// closed "more" group. It is still there; it is no longer the first thing a
+// first-time auditor has to read past.
+const auditWorkNav: { key: NavKey; labelKey: NavLabelKey }[] = [
+  { key: "projects", labelKey: "projects" },
+  { key: "myIssues", labelKey: "my_issues" },
+  { key: "issues", labelKey: "issues" },
+];
+
 const aiTeamNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "agents", labelKey: "agents" },
   { key: "squads", labelKey: "squads" },
   { key: "skills", labelKey: "skills" },
   { key: "runtimes", labelKey: "runtimes" },
+];
+
+const auditMoreNav: { key: NavKey; labelKey: NavLabelKey }[] = [
+  { key: "autopilots", labelKey: "autopilots" },
+  ...aiTeamNav,
 ];
 
 const utilityNav: { key: NavKey; labelKey: NavLabelKey }[] = [
@@ -789,7 +814,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {[...personalNav, ...(auditModeEnabled ? auditNav : [])].map((item) => {
+                {(auditModeEnabled ? auditPersonalNav : personalNav).map((item) => {
                   const href = p[item.key]();
                   const Icon = routeIconForPath(href);
                   const isActive = isNavActive(pathname, href);
@@ -877,7 +902,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
             <SidebarGroupLabel>{t(($) => $.sidebar.work_group)}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {workNav.map((item) => {
+                {(auditModeEnabled ? auditWorkNav : workNav).map((item) => {
                   const href = p[item.key]();
                   const Icon = routeIconForPath(href);
                   const isActive = !isActivePinnedRoute && isNavActive(pathname, href);
@@ -898,6 +923,41 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
             </SidebarGroupContent>
           </SidebarGroup>
 
+          {auditModeEnabled ? (
+            <Collapsible defaultOpen={false}>
+              <SidebarGroup>
+                <SidebarGroupLabel
+                  render={<CollapsibleTrigger />}
+                  className="group/trigger cursor-pointer hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
+                >
+                  <span>{t(($) => $.sidebar.more_group)}</span>
+                  <ChevronRight className="!size-3 ml-1 stroke-[2.5] transition-transform duration-200 group-data-[panel-open]/trigger:rotate-90" />
+                </SidebarGroupLabel>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu className="gap-0.5">
+                      {auditMoreNav.map((item) => {
+                        const href = p[item.key]();
+                        const Icon = routeIconForPath(href);
+                        return (
+                          <SidebarMenuItem key={item.key}>
+                            <SidebarMenuButton
+                              isActive={isNavActive(pathname, href)}
+                              render={<AppLink href={href} />}
+                              className={NAV_ITEM_CLASS_NAME}
+                            >
+                              <Icon />
+                              <span>{t(($) => $.nav[item.labelKey])}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </SidebarGroup>
+            </Collapsible>
+          ) : (
           <SidebarGroup>
             <SidebarGroupLabel>{t(($) => $.sidebar.ai_team_group)}</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -922,6 +982,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+          )}
         </SidebarContent>
 
         <SidebarFooter className="p-2">

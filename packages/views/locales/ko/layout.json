@@ -1,6 +1,7 @@
 {
   "nav": {
     "inbox": "인박스",
+    "audit_home": "감사 데스크",
     "chat": "채팅",
     "my_issues": "내 태스크",
     "review_queue": "Review queue",
@@ -63,6 +64,7 @@
     "discord_card": {
       "title": "Discord 참여하기",
       "dismiss": "닫기"
-    }
+    },
+    "more_group": "더보기"
   }
 }

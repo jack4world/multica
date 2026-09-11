@@ -1053,6 +1053,78 @@
       "withdrawn_empty": "没有资料被撤下过。",
       "withdrawn_at": "撤下于",
       "withdrawn_reason_label": "撤下原因"
+    },
+    "home": {
+      "greeting": "{name}，今天先看这些",
+      "greeting_anonymous": "今天先看这些",
+      "loading": "正在看有什么等着你…",
+      "mine_title": "轮到你了",
+      "review": {
+        "title": "待我复核",
+        "count": "{count} 份底稿等你",
+        "empty": "没有等你复核的底稿",
+        "cta": "去复核"
+      },
+      "remediation": {
+        "title": "我负责的整改",
+        "count": "{count} 条在办",
+        "overdue": "其中 {count} 条已逾期",
+        "empty": "没有你负责的整改事项",
+        "cta": "去处理"
+      },
+      "unit_title": "本单位",
+      "overdue": {
+        "title": "逾期整改",
+        "count": "{count} 条逾期",
+        "empty": "没有逾期的整改",
+        "cta": "看台账"
+      },
+      "engagements": {
+        "title": "进行中的审计项目",
+        "empty": "还没有进行中的审计项目",
+        "cta": "看项目",
+        "report": "出报告",
+        "archived_hidden": "已归档的不在这里显示。"
+      },
+      "documents": {
+        "title": "审计资料",
+        "hint": "本单位的制度、凭证、往年资料，按归档号放。",
+        "cta": "去资料库"
+      },
+      "phase": {
+        "preparation": "准备",
+        "fieldwork": "现场",
+        "reporting": "出报告",
+        "follow_up": "后续跟进",
+        "unset": "阶段未定"
+      },
+      "ask_title": "不知道从哪下手？",
+      "ask_hint": "右下角那个圆按钮随时能叫出 AI，在哪个页面都行。",
+      "starters": {
+        "what_now": "我是新来的审计人员，请用大白话告诉我现在该做什么。",
+        "how_review": "复核一份底稿要怎么操作？通过和退回分别会发生什么？",
+        "how_remediation": "整改事项从提出到关闭是怎么走的？我这一步要做什么？"
+      }
+    },
+    "ask": {
+      "button": "问 AI",
+      "free_form": "我想问别的…",
+      "queue": {
+        "what_to_check": "复核一份底稿时，我应该重点看什么？",
+        "return_reason": "退回底稿的理由要怎么写才对编制人有用？"
+      },
+      "ledger": {
+        "chase": "帮我写一段催办话术，发给逾期整改的责任部门。",
+        "verify": "验证整改时要查什么，验证情况怎么写才站得住？"
+      },
+      "library": {
+        "filing": "审计资料按归档号是怎么分的？我这份该放哪？",
+        "withdraw": "撤回一份资料和删除有什么区别？"
+      },
+      "report": {
+        "draft": "根据这次审计的发现，帮我起草报告的问题描述部分。",
+        "tone": "审计报告的措辞有什么要求？帮我把这段改得更规范。"
+      }
     }
   }
 }

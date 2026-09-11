@@ -37,6 +37,9 @@ function document(over: Partial<AuditDocument> = {}): AuditDocument {
   };
 }
 
+// The "问 AI" menu is the home page's to test (audit-home-page.test.tsx); here
+// it would only drag the chat store into a test about the page's own rules.
+vi.mock("./ask-agent-menu", () => ({ AskAgentMenu: () => null }));
 vi.mock("@multica/core/audit", () => ({
   useAuditMode: () => ({ data: { enabled: true, enabled_at: "2026-01-01T00:00:00Z" } }),
   useAuditCategories: () => ({ data: categories(), isPending: false }),

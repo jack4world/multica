@@ -102,7 +102,10 @@ export function proxy(req: NextRequest) {
     !isOfficialMarketingHost(req.nextUrl.hostname)
   ) {
     const url = req.nextUrl.clone();
-    url.pathname = `/${lastSlug}/issues`;
+    // The bare workspace path, not `/issues`: which page a workspace opens on
+    // depends on what kind of workspace it is, and this proxy cannot know.
+    // The client landing page decides (`WorkspaceLanding`).
+    url.pathname = `/${lastSlug}`;
     return NextResponse.redirect(url);
   }
 
