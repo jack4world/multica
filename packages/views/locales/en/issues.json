@@ -1085,27 +1085,27 @@
       "withdrawn_reason_label": "Reason"
     },
     "home": {
-      "greeting": "{name}, here is where things stand",
+      "greeting": "{{name}}, here is where things stand",
       "greeting_anonymous": "Here is where things stand",
       "loading": "Checking what is waiting on you…",
       "mine_title": "Waiting on you",
       "review": {
         "title": "To review",
-        "count": "{count} workpapers waiting",
+        "count": "{{count}} workpapers waiting",
         "empty": "No workpapers waiting on you",
         "cta": "Review"
       },
       "remediation": {
         "title": "My remediation items",
-        "count": "{count} in progress",
-        "overdue": "{count} of them overdue",
+        "count": "{{count}} in progress",
+        "overdue": "{{count}} of them overdue",
         "empty": "No remediation items assigned to you",
         "cta": "Open"
       },
       "unit_title": "This organization",
       "overdue": {
         "title": "Overdue remediation",
-        "count": "{count} overdue",
+        "count": "{{count}} overdue",
         "empty": "Nothing is overdue",
         "cta": "Open ledger"
       },

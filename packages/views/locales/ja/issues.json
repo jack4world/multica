@@ -1055,27 +1055,27 @@
       "withdrawn_reason_label": "Reason"
     },
     "home": {
-      "greeting": "{name}さん、今日の状況です",
+      "greeting": "{{name}}さん、今日の状況です",
       "greeting_anonymous": "今日の状況です",
       "loading": "待っている作業を確認しています…",
       "mine_title": "あなたの番です",
       "review": {
         "title": "レビュー待ち",
-        "count": "{count} 件の調書が待っています",
+        "count": "{{count}} 件の調書が待っています",
         "empty": "レビュー待ちの調書はありません",
         "cta": "レビューする"
       },
       "remediation": {
         "title": "担当の是正事項",
-        "count": "{count} 件進行中",
-        "overdue": "うち {count} 件が期限超過",
+        "count": "{{count}} 件進行中",
+        "overdue": "うち {{count}} 件が期限超過",
         "empty": "担当の是正事項はありません",
         "cta": "対応する"
       },
       "unit_title": "この組織",
       "overdue": {
         "title": "期限超過の是正",
-        "count": "{count} 件が期限超過",
+        "count": "{{count}} 件が期限超過",
         "empty": "期限超過はありません",
         "cta": "台帳を見る"
       },

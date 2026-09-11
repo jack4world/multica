@@ -1055,27 +1055,27 @@
       "withdrawn_reason_label": "Reason"
     },
     "home": {
-      "greeting": "{name}님, 오늘 상황입니다",
+      "greeting": "{{name}}님, 오늘 상황입니다",
       "greeting_anonymous": "오늘 상황입니다",
       "loading": "대기 중인 작업을 확인하는 중…",
       "mine_title": "내 차례",
       "review": {
         "title": "검토 대기",
-        "count": "조서 {count}건 대기 중",
+        "count": "조서 {{count}}건 대기 중",
         "empty": "검토 대기 중인 조서가 없습니다",
         "cta": "검토하기"
       },
       "remediation": {
         "title": "내 시정 항목",
-        "count": "{count}건 진행 중",
-        "overdue": "그중 {count}건 기한 초과",
+        "count": "{{count}}건 진행 중",
+        "overdue": "그중 {{count}}건 기한 초과",
         "empty": "담당 시정 항목이 없습니다",
         "cta": "처리하기"
       },
       "unit_title": "이 조직",
       "overdue": {
         "title": "기한 초과 시정",
-        "count": "{count}건 기한 초과",
+        "count": "{{count}}건 기한 초과",
         "empty": "기한 초과 항목이 없습니다",
         "cta": "대장 보기"
       },

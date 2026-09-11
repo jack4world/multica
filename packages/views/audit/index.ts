@@ -7,3 +7,4 @@ export { ReviewActions } from "./review-actions";
 export { refusalCode, refusalFallback, AUDIT_REFUSAL_CODES, type AuditRefusalCode } from "./refusal-copy";
 export { AskAgentMenu, type AskAgentPrompt } from "./ask-agent-menu";
 export { useAskAgent } from "./ask-agent";
+export { reviewLevelLabel } from "./level-label";

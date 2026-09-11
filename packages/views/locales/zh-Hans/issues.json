@@ -1055,27 +1055,27 @@
       "withdrawn_reason_label": "撤下原因"
     },
     "home": {
-      "greeting": "{name}，今天先看这些",
+      "greeting": "{{name}}，今天先看这些",
       "greeting_anonymous": "今天先看这些",
       "loading": "正在看有什么等着你…",
       "mine_title": "轮到你了",
       "review": {
         "title": "待我复核",
-        "count": "{count} 份底稿等你",
+        "count": "{{count}} 份底稿等你",
         "empty": "没有等你复核的底稿",
         "cta": "去复核"
       },
       "remediation": {
         "title": "我负责的整改",
-        "count": "{count} 条在办",
-        "overdue": "其中 {count} 条已逾期",
+        "count": "{{count}} 条在办",
+        "overdue": "其中 {{count}} 条已逾期",
         "empty": "没有你负责的整改事项",
         "cta": "去处理"
       },
       "unit_title": "本单位",
       "overdue": {
         "title": "逾期整改",
-        "count": "{count} 条逾期",
+        "count": "{{count}} 条逾期",
         "empty": "没有逾期的整改",
         "cta": "看台账"
       },
