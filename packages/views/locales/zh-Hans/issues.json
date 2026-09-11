@@ -439,7 +439,10 @@
     "workdir_path_copy_failed": "复制本地 workdir 路径失败",
     "workdir_path_unavailable": "暂无本地 workdir — 这个任务还没被本地智能体运行过",
     "unsubscribe_subtree_succeeded": "已取消订阅此任务及其子任务。",
-    "subscription_update_failed": "无法更新订阅状态，请重试。"
+    "subscription_update_failed": "无法更新订阅状态，请重试。",
+    "add_sub_issues_workpaper": "添加子底稿",
+    "add_sub_issue_tooltip_workpaper": "添加子底稿",
+    "add_sub_issue_aria_workpaper": "添加子底稿"
   },
   "timeline": {
     "loading": "加载中…"
@@ -474,7 +477,9 @@
     "workpaper_review_passed": "{{level}} 复核通过",
     "workpaper_review_rejected": "将工作底稿退回编制人",
     "workpaper_filed": "工作底稿已归档",
-    "workpaper_cancelled": "取消了工作底稿"
+    "workpaper_cancelled": "取消了工作底稿",
+    "created_workpaper": "创建了这份工作底稿",
+    "created_remediation": "提出了这条整改事项"
   },
   "comment": {
     "add_reaction": "添加表情回应",

@@ -82,7 +82,8 @@
     "toast_move_issue_failed": "태스크를 이동하지 못했습니다",
     "section_audit_report": "Audit report",
     "audit_report_link": "Open the audit report",
-    "audit_report_hint": "What this engagement sends out."
+    "audit_report_hint": "What this engagement sends out.",
+    "empty_issues_new_button_workpaper": "새 태스크"
   },
   "resources": {
     "section_header": "리소스",

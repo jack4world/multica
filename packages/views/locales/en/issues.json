@@ -444,7 +444,10 @@
     "project_directory_path_copied": "Project directory path copied",
     "project_directory_path_copied_with_branch": "Project directory path copied — work is on {{branch}}",
     "workdir_path_copy_failed": "Failed to copy workdir path",
-    "workdir_path_unavailable": "No local workdir yet — issue has not been run by a local agent"
+    "workdir_path_unavailable": "No local workdir yet — issue has not been run by a local agent",
+    "add_sub_issues_workpaper": "Add sub-workpapers",
+    "add_sub_issue_tooltip_workpaper": "Add sub-workpaper",
+    "add_sub_issue_aria_workpaper": "Add sub-workpaper"
   },
   "timeline": {
     "loading": "Loading..."
@@ -483,7 +486,9 @@
     "workpaper_review_passed": "passed review at {{level}}",
     "workpaper_review_rejected": "returned the workpaper to its preparer",
     "workpaper_filed": "filed the workpaper",
-    "workpaper_cancelled": "cancelled the workpaper"
+    "workpaper_cancelled": "cancelled the workpaper",
+    "created_workpaper": "created this workpaper",
+    "created_remediation": "raised this remediation item"
   },
   "comment": {
     "add_reaction": "Add reaction",

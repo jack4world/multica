@@ -289,6 +289,8 @@ vi.mock("../../projects/components/project-picker", () => ({
 // Mock api
 const mockApiObj = vi.hoisted(() => ({
   getIssue: vi.fn(),
+  // Off by default: an ordinary workspace. The audit-noun test flips it.
+  getAuditMode: vi.fn().mockResolvedValue({ enabled: false, enabled_at: null }),
   listTimeline: vi.fn().mockResolvedValue([]),
   listComments: vi.fn().mockResolvedValue([]),
   createComment: vi.fn(),
@@ -1685,6 +1687,51 @@ describe("IssueDetail (shared)", () => {
     await waitFor(() => {
       expect(screen.getByText(/from Todo to mystery_status/i)).toBeInTheDocument();
     });
+  });
+
+  // The trail's noun follows the vocabulary contract (conventions.mdx §4):
+  // inside an engagement of an auditee an issue is a workpaper. Named
+  // regression — the first workpaper an auditor opened read "created this
+  // issue" under a 审计项目 breadcrumb. The region matrix itself is tested in
+  // audit/issue-region.test.ts; this covers the wiring into the trail.
+  it("calls the issue a workpaper in the trail when it sits in an engagement of an auditee", async () => {
+    mockApiObj.getAuditMode.mockResolvedValue({ enabled: true, enabled_at: "2026-01-01T00:00:00Z" });
+    mockApiObj.getIssue.mockResolvedValue({ ...mockIssue, project_id: "p-1" });
+    mockApiObj.getProject.mockResolvedValue({
+      id: "p-1",
+      workspace_id: "ws-1",
+      title: "2025 年度离任审计",
+      description: null,
+      icon: null,
+      status: "in_progress",
+      priority: "none",
+      lead_type: null,
+      lead_id: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      issue_count: 0,
+      done_count: 0,
+      resource_count: 0,
+    });
+    mockApiObj.listTimeline.mockResolvedValue([
+      {
+        type: "activity",
+        id: "act-created",
+        actor_type: "member",
+        actor_id: "user-1",
+        action: "created",
+        details: {},
+        created_at: "2026-01-18T00:00:00Z",
+      },
+    ] as TimelineEntry[]);
+
+    try {
+      renderIssueDetail();
+      expect(await screen.findByText(/created this workpaper/i)).toBeInTheDocument();
+      expect(screen.queryByText(/created this issue/i)).not.toBeInTheDocument();
+    } finally {
+      mockApiObj.getAuditMode.mockResolvedValue({ enabled: false, enabled_at: null });
+    }
   });
 
   // -------------------------------------------------------------------------

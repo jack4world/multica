@@ -82,7 +82,8 @@
     "toast_move_issue_failed": "タスクを移動できませんでした",
     "section_audit_report": "Audit report",
     "audit_report_link": "Open the audit report",
-    "audit_report_hint": "What this engagement sends out."
+    "audit_report_hint": "What this engagement sends out.",
+    "empty_issues_new_button_workpaper": "新規タスク"
   },
   "resources": {
     "section_header": "リソース",

@@ -137,7 +137,7 @@ import { PAGE_GUTTER } from "../../layout/page-header";
 import { ProgressRing } from "./progress-ring";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 import { useT } from "../../i18n";
-import { ReviewActions, reviewLevelLabel } from "../../audit";
+import { ReviewActions, reviewLevelLabel, useAuditIssueRegion, type AuditIssueRegion } from "../../audit";
 import { useIssueDetailScrollRestore } from "../hooks/use-issue-detail-scroll-restore";
 import { useInPageFind } from "../hooks/use-in-page-find";
 import { useStickyComposer } from "../hooks/use-sticky-composer";
@@ -293,11 +293,18 @@ function formatActivity(
   locale: string,
   resolveActorName?: (type: string, id: string) => string,
   resolveStatusLabel?: (statusKey: string) => string,
+  region: AuditIssueRegion = null,
 ): string {
   const details = (entry.details ?? {}) as Record<string, string>;
   switch (entry.action) {
     case "created":
-      return t(($) => $.activity.created);
+      // The noun follows the vocabulary contract (conventions.mdx §4): a
+      // workpaper inside an engagement, a remediation item outside one.
+      return region === "workpaper"
+        ? t(($) => $.activity.created_workpaper)
+        : region === "remediation"
+          ? t(($) => $.activity.created_remediation)
+          : t(($) => $.activity.created);
     case "status_changed":
       return t(($) => $.activity.status_changed, {
         from: statusLabel(details.from ?? "?", t, resolveStatusLabel),
@@ -559,6 +566,7 @@ function ActivityBlock({
   t,
   timeAgo,
   locale,
+  region = null,
 }: {
   entries: TimelineEntry[];
   expanded: boolean;
@@ -577,6 +585,7 @@ function ActivityBlock({
   t: ActivityT;
   timeAgo: (dateStr: string) => string;
   locale: string;
+  region?: AuditIssueRegion;
 }) {
   if (!expanded) {
     const count = entries.length;
@@ -673,7 +682,7 @@ function ActivityBlock({
               <span className="shrink-0 font-medium">
                 {entry.actor_name || getActorName(entry.actor_type, entry.actor_id)}
               </span>
-              <span className="truncate">{formatActivity(entry, t, locale, getActorName, resolveStatusLabel)}</span>
+              <span className="truncate">{formatActivity(entry, t, locale, getActorName, resolveStatusLabel, region)}</span>
               {(entry.coalesced_count ?? 1) > 1 &&
                 entry.action !== "task_completed" &&
                 entry.action !== "task_failed" && (
@@ -1801,6 +1810,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // Project segment in the breadcrumb. The issue's project_id is the source of
   // truth — same URL renders the same breadcrumb regardless of entry path.
   const issueProjectId = issue?.project_id;
+  // Which noun this issue renders under in an auditee workspace (工作底稿 /
+  // 整改事项); null elsewhere. See conventions.mdx §4.
+  const auditRegion = useAuditIssueRegion(wsId, issueProjectId);
   const { data: breadcrumbProject = null } = useQuery({
     ...projectDetailOptions(wsId, issueProjectId ?? ""),
     enabled: !!issueProjectId,
@@ -2723,6 +2735,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         t={t}
         timeAgo={timeAgo}
         locale={locale}
+        region={auditRegion}
       />
     );
   };
@@ -3121,7 +3134,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                 onClick={() => actions.openCreateSubIssue()}
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>{t(($) => $.detail.add_sub_issues)}</span>
+                <span>{t(($) => (auditRegion === "workpaper" ? $.detail.add_sub_issues_workpaper : $.detail.add_sub_issues))}</span>
               </button>
             </div>
           )}
@@ -3180,13 +3193,13 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                             type="button"
                             className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
                             onClick={() => actions.openCreateSubIssue()}
-                            aria-label={t(($) => $.detail.add_sub_issue_aria)}
+                            aria-label={t(($) => (auditRegion === "workpaper" ? $.detail.add_sub_issue_aria_workpaper : $.detail.add_sub_issue_aria))}
                           >
                             <Plus className="h-4 w-4" />
                           </button>
                         }
                       />
-                      <TooltipContent side="bottom">{t(($) => $.detail.add_sub_issue_tooltip)}</TooltipContent>
+                      <TooltipContent side="bottom">{t(($) => (auditRegion === "workpaper" ? $.detail.add_sub_issue_tooltip_workpaper : $.detail.add_sub_issue_tooltip))}</TooltipContent>
                     </Tooltip>
                   </div>
                 </div>

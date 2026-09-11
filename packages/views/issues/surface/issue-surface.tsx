@@ -5,6 +5,7 @@ import { AlertTriangle, FilterX, ListTodo, Plus } from "lucide-react";
 import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { cn } from "@multica/ui/lib/utils";
+import { useAuditIssueRegion } from "../../audit";
 import { useWorkspaceId } from "@multica/core/hooks";
 import {
   useViewStore,
@@ -179,6 +180,12 @@ function IssueSurfaceContent({
   contentClassName,
 }: Omit<IssueSurfaceComponentProps, "surfaceKey">) {
   const { t } = useT("projects");
+  // In an engagement the empty state offers a 工作底稿, not a 任务
+  // (conventions.mdx §4); every other scope keeps the base glossary.
+  const auditRegion = useAuditIssueRegion(
+    useWorkspaceId(),
+    scope.type === "project" ? scope.projectId : null,
+  );
   const controller = useIssueSurfaceController({
     scope,
     modes,
@@ -296,7 +303,11 @@ function IssueSurfaceContent({
                 onClick={() => controller.openCreateIssue()}
               >
                 <Plus className="size-3.5 mr-1.5" />
-                {t(($) => $.detail.empty_issues_new_button)}
+                {t(($) =>
+                  auditRegion === "workpaper"
+                    ? $.detail.empty_issues_new_button_workpaper
+                    : $.detail.empty_issues_new_button,
+                )}
               </Button>
             </div>
           )

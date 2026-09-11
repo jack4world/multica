@@ -439,7 +439,10 @@
     "project_directory_path_copied": "プロジェクトディレクトリのパスをコピーしました",
     "project_directory_path_copied_with_branch": "プロジェクトディレクトリのパスをコピーしました — 作業は {{branch}} ブランチにあります",
     "workdir_path_copy_failed": "作業ディレクトリのパスをコピーできませんでした",
-    "workdir_path_unavailable": "まだローカルの作業ディレクトリがありません。ローカルエージェントがこのタスクを実行していません"
+    "workdir_path_unavailable": "まだローカルの作業ディレクトリがありません。ローカルエージェントがこのタスクを実行していません",
+    "add_sub_issues_workpaper": "サブタスクを追加",
+    "add_sub_issue_tooltip_workpaper": "サブタスクを追加",
+    "add_sub_issue_aria_workpaper": "サブタスクを追加"
   },
   "timeline": {
     "loading": "読み込み中..."
@@ -474,7 +477,9 @@
     "workpaper_review_passed": "passed review at {{level}}",
     "workpaper_review_rejected": "returned the workpaper to its preparer",
     "workpaper_filed": "filed the workpaper",
-    "workpaper_cancelled": "cancelled the workpaper"
+    "workpaper_cancelled": "cancelled the workpaper",
+    "created_workpaper": "このタスクを作成しました",
+    "created_remediation": "このタスクを作成しました"
   },
   "comment": {
     "add_reaction": "リアクションを追加",
