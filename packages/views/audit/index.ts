@@ -9,3 +9,4 @@ export { AskAgentMenu, type AskAgentPrompt } from "./ask-agent-menu";
 export { useAskAgent } from "./ask-agent";
 export { reviewLevelLabel } from "./level-label";
 export { auditIssueRegion, useAuditIssueRegion, type AuditIssueRegion } from "./issue-region";
+export { auditIssueNavKey, type AuditIssueNavKey } from "./issue-nav";
