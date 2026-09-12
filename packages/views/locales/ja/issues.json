@@ -479,7 +479,12 @@
     "workpaper_filed": "filed the workpaper",
     "workpaper_cancelled": "cancelled the workpaper",
     "created_workpaper": "このタスクを作成しました",
-    "created_remediation": "このタスクを作成しました"
+    "created_remediation": "このタスクを作成しました",
+    "remediation_started": "是正を開始しました",
+    "remediation_submitted": "是正を検証に提出しました",
+    "remediation_verified": "是正を検証し、項目を完了しました",
+    "remediation_rejected": "是正項目を担当部門に差し戻しました",
+    "remediation_cancelled": "是正項目を取り消しました"
   },
   "comment": {
     "add_reaction": "リアクションを追加",

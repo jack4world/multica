@@ -488,7 +488,12 @@
     "workpaper_filed": "filed the workpaper",
     "workpaper_cancelled": "cancelled the workpaper",
     "created_workpaper": "created this workpaper",
-    "created_remediation": "raised this remediation item"
+    "created_remediation": "raised this remediation item",
+    "remediation_started": "started remediation",
+    "remediation_submitted": "submitted the remediation for verification",
+    "remediation_verified": "verified the remediation and closed the item",
+    "remediation_rejected": "returned the remediation item to its department",
+    "remediation_cancelled": "cancelled the remediation item"
   },
   "comment": {
     "add_reaction": "Add reaction",

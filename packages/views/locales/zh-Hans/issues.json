@@ -479,7 +479,12 @@
     "workpaper_filed": "工作底稿已归档",
     "workpaper_cancelled": "取消了工作底稿",
     "created_workpaper": "创建了这份工作底稿",
-    "created_remediation": "提出了这条整改事项"
+    "created_remediation": "提出了这条整改事项",
+    "remediation_started": "开始了整改",
+    "remediation_submitted": "提交了整改验证",
+    "remediation_verified": "验证通过，关闭了整改事项",
+    "remediation_rejected": "将整改事项退回责任部门",
+    "remediation_cancelled": "取消了整改事项"
   },
   "comment": {
     "add_reaction": "添加表情回应",

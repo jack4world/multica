@@ -287,6 +287,11 @@ function statusLabel(
   return status;
 }
 
+/** A trail sentence with the note that was written with it, when there is one. */
+function withReason(sentence: string, reason: string | undefined): string {
+  return reason ? `${sentence}: ${reason}` : sentence;
+}
+
 function formatActivity(
   entry: TimelineEntry,
   t: ActivityT,
@@ -331,6 +336,21 @@ function formatActivity(
       return t(($) => $.activity.workpaper_filed);
     case "workpaper_cancelled":
       return t(($) => $.activity.workpaper_cancelled);
+    // Remediation ledger chain (ADR-0004). Same reason as above: without
+    // these the ledger's trail — the page an internal audit function opens
+    // most — showed "remediation_submitted" where every other entry is a
+    // sentence. The note travels as `reason`: it is what the verifier or the
+    // department was told, so it belongs in the record.
+    case "remediation_started":
+      return t(($) => $.activity.remediation_started);
+    case "remediation_submitted":
+      return withReason(t(($) => $.activity.remediation_submitted), details.reason);
+    case "remediation_verified":
+      return withReason(t(($) => $.activity.remediation_verified), details.reason);
+    case "remediation_rejected":
+      return withReason(t(($) => $.activity.remediation_rejected), details.reason);
+    case "remediation_cancelled":
+      return withReason(t(($) => $.activity.remediation_cancelled), details.reason);
     case "priority_changed":
       return t(($) => $.activity.priority_changed, {
         from: priorityLabel(details.from ?? "?", t),
