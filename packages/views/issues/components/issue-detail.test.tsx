@@ -1734,6 +1734,39 @@ describe("IssueDetail (shared)", () => {
     }
   });
 
+  // The ledger chain's entries are sentences too, with the note that was
+  // written with them. Named regression: AUDI-9 read "remediation_submitted".
+  it("renders remediation trail entries as sentences carrying their note", async () => {
+    mockApiObj.listTimeline.mockResolvedValue([
+      {
+        type: "activity",
+        id: "act-rem-1",
+        actor_type: "member",
+        actor_id: "user-1",
+        action: "remediation_started",
+        details: { from: "todo", to: "remediating" },
+        created_at: "2026-01-18T00:00:00Z",
+      },
+      {
+        type: "activity",
+        id: "act-rem-2",
+        actor_type: "member",
+        actor_id: "user-1",
+        action: "remediation_verified",
+        details: { from: "pending_verification", to: "remediation_closed", reason: "抽查 12 笔已补齐附件" },
+        created_at: "2026-01-19T00:00:00Z",
+      },
+    ] as TimelineEntry[]);
+
+    renderIssueDetail();
+
+    expect(await screen.findByText(/started remediation/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/verified the remediation and closed the item: 抽查 12 笔已补齐附件/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/remediation_/)).not.toBeInTheDocument();
+  });
+
   // -------------------------------------------------------------------------
   // MUL-6413 — the activity glyph is per CATEGORY, so a move into a custom
   // status drew the icon of the built-in it sits beside: "In Review → Awaiting

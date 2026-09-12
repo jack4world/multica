@@ -479,7 +479,12 @@
     "workpaper_filed": "filed the workpaper",
     "workpaper_cancelled": "cancelled the workpaper",
     "created_workpaper": "이 태스크를 만들었습니다",
-    "created_remediation": "이 태스크를 만들었습니다"
+    "created_remediation": "이 태스크를 만들었습니다",
+    "remediation_started": "시정을 시작했습니다",
+    "remediation_submitted": "시정을 검증에 제출했습니다",
+    "remediation_verified": "시정을 검증하고 항목을 종결했습니다",
+    "remediation_rejected": "시정 항목을 담당 부서로 반려했습니다",
+    "remediation_cancelled": "시정 항목을 취소했습니다"
   },
   "comment": {
     "add_reaction": "반응 추가",
