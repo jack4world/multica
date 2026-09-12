@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@multica/core/api";
 import { renderWithI18n } from "../test/i18n";
 import { AppSidebar } from "./app-sidebar";
 
-const { appForeground, auditMode, chatSessions, chatStore, detail, deletePin, inboxItems, navigation, pins, sidebarState, summary, workspaces } = vi.hoisted(() => ({
+const { appForeground, auditMode, reviewQueue, chatSessions, chatStore, detail, deletePin, inboxItems, navigation, pins, sidebarState, summary, workspaces } = vi.hoisted(() => ({
   appForeground: { current: true },
   auditMode: { current: false },
+  reviewQueue: { current: [] as { issue: { id: string; identifier: string } }[] },
   sidebarState: { setOpenMobile: vi.fn() },
   chatSessions: { current: [] as { id?: string; unread_count?: number }[] },
   chatStore: { current: { activeSessionId: null as string | null, isOpen: false } },
@@ -149,6 +150,7 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
 // unmocked query would have resolved to.
 vi.mock("@multica/core/audit", () => ({
   useAuditMode: () => ({ data: { enabled: auditMode.current, enabled_at: null } }),
+  useReviewQueue: () => ({ data: reviewQueue.current }),
 }));
 vi.mock("@multica/core/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@multica/core/api")>();
@@ -532,5 +534,46 @@ describe("auditee workspace nav", () => {
     } finally {
       auditMode.current = false;
     }
+  });
+});
+
+// Where an open issue sits in the nav of an auditee workspace. The rule's
+// matrix is tested in audit/issue-nav.test.ts; this covers that the sidebar
+// lights the right button and darkens 任务 when it does.
+describe("auditee workspace nav: open issue", () => {
+  const active = (container: HTMLElement, href: string) =>
+    container.querySelector(`button[data-href="${href}"]`)?.getAttribute("data-active") === "true";
+
+  beforeEach(() => {
+    auditMode.current = true;
+    navigation.current = { pathname: "/acme/issues/issue-9" };
+    reviewQueue.current = [];
+    detail.current = { isPending: false, isError: false, data: null, error: null };
+  });
+
+  afterEach(() => {
+    auditMode.current = false;
+  });
+
+  it("lights 待我复核, not 任务, for a workpaper waiting on the viewer", () => {
+    reviewQueue.current = [{ issue: { id: "issue-9", identifier: "AUDI-9" } }];
+    detail.current.data = { id: "issue-9", project_id: "p-1" };
+    const { container } = renderWithI18n(<AppSidebar />);
+    expect(active(container, "/acme/review-queue")).toBe(true);
+    expect(active(container, "/acme/issues")).toBe(false);
+  });
+
+  it("lights 整改台账 for a remediation item, which has no engagement", () => {
+    detail.current.data = { id: "issue-9", project_id: null };
+    const { container } = renderWithI18n(<AppSidebar />);
+    expect(active(container, "/acme/remediation")).toBe(true);
+    expect(active(container, "/acme/issues")).toBe(false);
+  });
+
+  it("keeps 任务 for a workpaper that is not waiting on the viewer", () => {
+    detail.current.data = { id: "issue-9", project_id: "p-1" };
+    const { container } = renderWithI18n(<AppSidebar />);
+    expect(active(container, "/acme/issues")).toBe(true);
+    expect(active(container, "/acme/review-queue")).toBe(false);
   });
 });

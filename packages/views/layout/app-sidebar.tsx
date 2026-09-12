@@ -63,12 +63,13 @@ import {
   issueViewContainerKey,
   useActiveIssueViewStore,
 } from "@multica/core/issue-views/active-view-store";
-import { useCurrentWorkspace, useWorkspacePaths, paths } from "@multica/core/paths";
+import { useCurrentWorkspace, useWorkspacePaths, paths, parseTabSubject } from "@multica/core/paths";
 import { workspaceListOptions, myInvitationListOptions, workspaceKeys } from "@multica/core/workspace/queries";
 import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { inboxKeys, deduplicateInboxItems, inboxUnreadSummaryOptions, hasOtherWorkspaceUnread, unreadWorkspaceIds } from "@multica/core/inbox/queries";
-import { useAuditMode } from "@multica/core/audit";
+import { useAuditMode, useReviewQueue } from "@multica/core/audit";
+import { auditIssueNavKey } from "../audit/issue-nav";
 import { chatSessionsOptions } from "@multica/core/chat/queries";
 import { countUnreadChatMessages } from "@multica/core/chat/unread";
 import { useChatStore } from "@multica/core/chat";
@@ -78,7 +79,7 @@ import { pinListOptions } from "@multica/core/pins/queries";
 import { useDeletePin, useReorderPins } from "@multica/core/pins/mutations";
 import { issueDetailOptions } from "@multica/core/issues/queries";
 import { projectDetailOptions } from "@multica/core/projects/queries";
-import type { PinnedItem } from "@multica/core/types";
+import type { PinnedItem, ReviewQueueItem } from "@multica/core/types";
 import { useLogout } from "../auth";
 import { ProjectIcon } from "../projects/components/project-icon";
 import { routeIconForPath } from "./route-icon-components";
@@ -103,6 +104,7 @@ function isNavActive(pathname: string, href: string): boolean {
 // `useEffect`/`useMemo` that depends on the value, and can trigger infinite
 // re-render loops when the effect itself calls `setState`.
 const EMPTY_PINS: PinnedItem[] = [];
+const EMPTY_REVIEW_QUEUE: ReviewQueueItem[] = [];
 const EMPTY_WORKSPACES: Awaited<ReturnType<typeof api.listWorkspaces>> = [];
 const EMPTY_INVITATIONS: Awaited<ReturnType<typeof api.listMyInvitations>> = [];
 const EMPTY_INBOX: Awaited<ReturnType<typeof api.listInbox>> = [];
@@ -507,6 +509,19 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   // workspace state gets; the query caches it rather than asking per render.
   const { data: auditMode } = useAuditMode(wsId ?? "");
   const auditModeEnabled = auditMode?.enabled === true;
+  // In audit mode an open issue may belong to 待我复核 or 整改台账 rather than
+  // to 任务 (see auditIssueNavKey). Both reads are cache hits in practice:
+  // the queue is what the desk and queue page already hold, and the issue is
+  // the one the detail page under this sidebar just fetched.
+  const routeSubject = parseTabSubject(pathname);
+  const routeIssueId = routeSubject.kind === "issue" ? routeSubject.id : null;
+  const auditIssueRoute = auditModeEnabled && routeIssueId !== null;
+  const { data: reviewQueue = EMPTY_REVIEW_QUEUE } = useReviewQueue(wsId ?? "", auditIssueRoute);
+  const { data: routeIssue } = useQuery({
+    ...issueDetailOptions(wsId ?? "", routeIssueId ?? ""),
+    enabled: auditIssueRoute,
+  });
+  const auditActiveNav = auditIssueNavKey(auditModeEnabled, routeIssueId, reviewQueue, routeIssue);
 
   const unreadCount = React.useMemo(
     () => deduplicateInboxItems(inboxItems).filter((i) => !i.read).length,
@@ -817,7 +832,9 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                 {(auditModeEnabled ? auditPersonalNav : personalNav).map((item) => {
                   const href = p[item.key]();
                   const Icon = routeIconForPath(href);
-                  const isActive = isNavActive(pathname, href);
+                  const isActive = auditActiveNav
+                    ? item.key === auditActiveNav
+                    : isNavActive(pathname, href);
                   return (
                     <SidebarMenuItem key={item.key}>
                       <SidebarMenuButton
@@ -905,7 +922,9 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                 {(auditModeEnabled ? auditWorkNav : workNav).map((item) => {
                   const href = p[item.key]();
                   const Icon = routeIconForPath(href);
-                  const isActive = !isActivePinnedRoute && isNavActive(pathname, href);
+                  const isActive =
+                    !isActivePinnedRoute &&
+                    (auditActiveNav ? item.key === auditActiveNav : isNavActive(pathname, href));
                   return (
                     <SidebarMenuItem key={item.key}>
                       <SidebarMenuButton
